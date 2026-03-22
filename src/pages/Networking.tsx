@@ -1,17 +1,12 @@
 // @ts-nocheck
 import { useState, useEffect, useRef, useCallback } from "react";
-import { GoogleMap, useJsApiLoader, MarkerF, InfoWindowF } from "@react-google-maps/api";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
-// ============ GOOGLE MAPS CONFIG ============
-const GOOGLE_MAPS_API_KEY = ""; // Add your API key here for production
-const MAP_CENTER = { lat: 14.5, lng: -87.5 };
-const MAP_STYLES = [
-  { featureType: "water", elementType: "geometry", stylers: [{ color: "#e9e9e9" }] },
-  { featureType: "landscape", elementType: "geometry", stylers: [{ color: "#f5f5f5" }] },
-  { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
-  { featureType: "poi", elementType: "labels", stylers: [{ visibility: "off" }] },
-  { featureType: "administrative", elementType: "geometry.stroke", stylers: [{ color: "#c9c9c9" }] },
-];
+// ============ MAP CONFIG ============
+const MAP_CENTER = [14.5, -87.5];
+const MAP_ZOOM = 5;
 
 // ============ XP SYSTEM ============
 const XP_VALUES = {
@@ -327,18 +322,25 @@ const LevelProgressBar = ({ profile }) => {
 };
 
 // ============ GOOGLE MAPS ============
-function GoogleMapsView({ profiles, privacySettings }) {
-  const [selectedProfile, setSelectedProfile] = useState(null);
-  const [mapRef, setMapRef] = useState(null);
-
-  const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey: GOOGLE_MAPS_API_KEY,
+// Custom marker icon creator for Leaflet
+const createCustomIcon = (color) => {
+  return L.divIcon({
+    className: 'custom-marker',
+    html: `<div style="
+      width: 24px;
+      height: 24px;
+      background: ${color};
+      border: 3px solid white;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    "></div>`,
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -12],
   });
+};
 
-  const onLoad = useCallback((map) => {
-    setMapRef(map);
-  }, []);
-
+function MapView({ profiles, privacySettings }) {
   // Filter profiles that have location visible
   const visibleProfiles = profiles.filter(p => {
     if (p.id === CURRENT_USER_ID) return privacySettings.showLocation;
@@ -351,86 +353,43 @@ function GoogleMapsView({ profiles, privacySettings }) {
     countries[p.country].push(p);
   });
 
-  if (loadError) {
-    return (
-      <div style={{ padding: "16px 0" }}>
-        <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: S.text, marginBottom: "4px" }}>Comunidad Catalizadores</h3>
-        <p style={{ fontSize: "13px", color: S.textSec, marginBottom: "16px" }}>{profiles.length} participantes · {Object.keys(countries).length} países</p>
-        <div style={{ background: S.redBg, borderRadius: "12px", padding: "16px", border: `1px solid ${S.red}30` }}>
-          <p style={{ color: S.red, fontSize: "13px", margin: 0, fontFamily: "'DM Sans', sans-serif", fontWeight: 700 }}>Error al cargar Google Maps. Verifica tu API key.</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isLoaded) {
-    return (
-      <div style={{ padding: "16px 0" }}>
-        <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: S.text, marginBottom: "4px" }}>Comunidad Catalizadores</h3>
-        <div style={{ background: S.card, borderRadius: "20px", padding: "60px 20px", border: `1px solid ${S.border}`, textAlign: "center" }}>
-          <div style={{ width: 32, height: 32, border: `3px solid ${S.green}`, borderTopColor: "transparent", borderRadius: "50%", margin: "0 auto 12px", animation: "spin 1s linear infinite" }}/>
-          <p style={{ color: S.textSec, fontSize: "13px", fontFamily: "'DM Sans', sans-serif", fontWeight: 700 }}>Cargando mapa...</p>
-        </div>
-        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
-
   return (
     <div style={{ padding: "16px 0" }}>
       <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: S.text, marginBottom: "4px" }}>Comunidad Catalizadores</h3>
       <p style={{ fontSize: "13px", color: S.textSec, marginBottom: "16px", fontFamily: "'DM Sans', sans-serif" }}>{visibleProfiles.length} de {profiles.length} participantes visibles · {Object.keys(countries).length} países</p>
 
-      <div style={{ background: S.card, borderRadius: "20px", overflow: "hidden", border: `1px solid ${S.border}`, boxShadow: "0 4px 12px rgba(0,0,0,0.3)" }}>
-        <GoogleMap
-          mapContainerStyle={{ width: "100%", height: "350px" }}
+      <div style={{ background: S.card, borderRadius: "20px", overflow: "hidden", border: `1px solid ${S.border}`, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+        <MapContainer
           center={MAP_CENTER}
-          zoom={5}
-          onLoad={onLoad}
-          options={{
-            styles: MAP_STYLES,
-            disableDefaultUI: true,
-            zoomControl: true,
-            mapTypeControl: false,
-            streetViewControl: false,
-            fullscreenControl: false,
-          }}
+          zoom={MAP_ZOOM}
+          style={{ width: "100%", height: "350px" }}
+          scrollWheelZoom={true}
         >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
           {visibleProfiles.map(p => (
-            <MarkerF
+            <Marker
               key={p.id}
-              position={{ lat: p.lat, lng: p.lng }}
-              onClick={() => setSelectedProfile(p)}
-              icon={{
-                path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z",
-                fillColor: p.color,
-                fillOpacity: 1,
-                strokeColor: "#fff",
-                strokeWeight: 2,
-                scale: 1.5,
-                anchor: { x: 12, y: 22 },
-              }}
-            />
-          ))}
-
-          {selectedProfile && (
-            <InfoWindowF
-              position={{ lat: selectedProfile.lat, lng: selectedProfile.lng }}
-              onCloseClick={() => setSelectedProfile(null)}
+              position={[p.lat, p.lng]}
+              icon={createCustomIcon(p.color)}
             >
-              <div style={{ padding: "4px", minWidth: "160px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
-                  <Avatar profile={selectedProfile} size={32}/>
-                  <div>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: "13px", color: "#111", fontFamily: "'DM Sans', sans-serif" }}>{selectedProfile.name}</p>
-                    <p style={{ margin: 0, fontSize: "11px", color: "#666", fontFamily: "'DM Sans', sans-serif" }}>{selectedProfile.role}</p>
+              <Popup>
+                <div style={{ padding: "4px", minWidth: "160px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                    <Avatar profile={p} size={32}/>
+                    <div>
+                      <p style={{ margin: 0, fontWeight: 700, fontSize: "13px", color: "#111", fontFamily: "'DM Sans', sans-serif" }}>{p.name}</p>
+                      <p style={{ margin: 0, fontSize: "11px", color: "#666", fontFamily: "'DM Sans', sans-serif" }}>{p.role}</p>
+                    </div>
                   </div>
+                  <p style={{ margin: 0, fontSize: "11px", color: "#888", fontFamily: "'DM Sans', sans-serif" }}>📍 {p.city}, {p.country}</p>
                 </div>
-                <p style={{ margin: 0, fontSize: "11px", color: "#888", fontFamily: "'DM Sans', sans-serif" }}>📍 {selectedProfile.city}, {selectedProfile.country}</p>
-              </div>
-            </InfoWindowF>
-          )}
-        </GoogleMap>
+              </Popup>
+            </Marker>
+          ))}
+        </MapContainer>
       </div>
 
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "12px" }}>
@@ -1134,7 +1093,7 @@ export default function Networking() {
             <p style={{ fontSize: "14px", color: S.textSec, fontFamily: "'DM Sans', sans-serif" }}>Revisa tus conexiones y conecta</p>
           </div>
         ))}
-        {tab === "map" && <GoogleMapsView profiles={cohortProfiles} privacySettings={privacySettings}/>}
+        {tab === "map" && <MapView profiles={cohortProfiles} privacySettings={privacySettings}/>}
         {tab === "leaderboard" && <Leaderboard profiles={cohortProfiles} matches={matches} currentUserId={CURRENT_USER_ID} onContact={contactFromLeaderboard}/>}
         {tab === "matches" && <MatchesList matches={matches} allProfiles={PROFILES} onOpenChat={openChat}/>}
         {tab === "chat" && chatMatch && <ChatView profile={PROFILES.find(p => p.id === chatMatch.id)} icebreaker={chatMatch.icebreaker} onBack={() => setTab("matches")}/>}
