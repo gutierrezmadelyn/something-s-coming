@@ -56,22 +56,21 @@ const SEEKS_OPTIONS = [
   "Experiencia en otra tematica",
 ];
 
-const ROLE_OPTIONS = [
-  "Consultor",
-  "Consultora",
-  "Facilitador",
-  "Facilitadora",
-  "Coach",
-  "Capacitador",
-  "Capacitadora",
-  "Mentor",
-  "Mentora",
+const ORGANIZATION_TYPE_OPTIONS = [
+  "Academia",
+  "Asociacion_empresas",
+  "Colectivo",
+  "Empresa_privada",
+  "Empresa_publica",
+  "Empresa_social",
+  "Gobierno",
+  "ONG",
 ];
 
 const WORK_TYPE_OPTIONS = [
+  { value: "Empleado", label: "Empleado" },
   { value: "Independiente", label: "Independiente" },
-  { value: "Organizacion", label: "Organizacion" },
-  { value: "Ambas", label: "Ambas" },
+  { value: "Ambos", label: "Ambos" },
 ];
 
 const COUNTRY_OPTIONS = [
@@ -322,13 +321,49 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
     e.preventDefault();
     setError(null);
 
+    // Validate required fields (all except linkedin, whatsapp, city)
     if (!formData.name.trim()) {
       setError("Por favor ingresa tu nombre");
       return;
     }
 
+    if (!formData.country) {
+      setError("Por favor selecciona tu pais");
+      return;
+    }
+
+    if (!formData.role) {
+      setError("Por favor selecciona el tipo de organizacion");
+      return;
+    }
+
+    if (!formData.work_type) {
+      setError("Por favor selecciona el tipo de trabajo");
+      return;
+    }
+
+    if (!formData.pitch.trim()) {
+      setError("Por favor ingresa tu pitch");
+      return;
+    }
+
     if (formData.expertise.length === 0) {
       setError("Selecciona al menos una expertise");
+      return;
+    }
+
+    if (formData.sectors.length === 0) {
+      setError("Selecciona al menos un sector");
+      return;
+    }
+
+    if (formData.offers.length === 0) {
+      setError("Selecciona al menos una opcion en 'Lo que ofrezco'");
+      return;
+    }
+
+    if (formData.seeks.length === 0) {
+      setError("Selecciona al menos una opcion en 'Lo que busco'");
       return;
     }
 
@@ -436,10 +471,10 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
       </div>
 
       <Select
-        label="Rol"
+        label="Tipo de organizacion"
         value={formData.role}
         onChange={(v) => setFormData(prev => ({ ...prev, role: v }))}
-        options={ROLE_OPTIONS}
+        options={ORGANIZATION_TYPE_OPTIONS}
       />
 
       <Select
@@ -449,7 +484,7 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         options={WORK_TYPE_OPTIONS}
       />
 
-      {(formData.work_type === "Organizacion" || formData.work_type === "Ambas") && (
+      {(formData.work_type === "Empleado" || formData.work_type === "Ambos") && (
         <Input
           label="Organizacion"
           value={formData.organization}
