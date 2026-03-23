@@ -22,14 +22,31 @@ const S = {
 };
 
 const EXPERTISE_OPTIONS = [
+  "Estrategia empresarial",
+  "Gestion financiera",
   "Marketing y ventas",
-  "Finanzas",
-  "Transformacion digital",
-  "Desarrollo organizacional",
-  "Sostenibilidad",
-  "Genero e inclusion",
-  "Liderazgo",
+  "Inteligencia de negocios",
+  "Recursos Humanos",
+  "Tecnologia de la informacion",
+  "Mejora de procesos",
+  "Gestion del cambio",
+  "Gestion de riesgos y cumplimiento normativo",
+  "Internacionalizacion y expansion",
+  "Impacto ambiental o social",
+  "Asistencia tecnica especializada",
 ];
+
+// Country codes mapping
+const COUNTRY_CODES: Record<string, string> = {
+  "El Salvador": "+503",
+  "Guatemala": "+502",
+  "Honduras": "+504",
+  "Peru": "+51",
+  "Mexico": "+52",
+  "Venezuela": "+58",
+  "Colombia": "+57",
+  "Republica Dominicana": "+1",
+};
 
 const SECTOR_OPTIONS = [
   "PyMEs",
@@ -536,12 +553,50 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         onChange={(v) => handleToggleArray("seeks", v)}
       />
 
-      <Input
-        label="WhatsApp (con codigo de pais)"
-        value={formData.whatsapp}
-        onChange={(v) => setFormData(prev => ({ ...prev, whatsapp: v }))}
-        placeholder="+502 1234 5678"
-      />
+      <div style={{ marginBottom: "16px" }}>
+        <label style={{
+          display: "block",
+          fontSize: "12px",
+          fontWeight: 600,
+          color: S.textSec,
+          marginBottom: "6px",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em"
+        }}>
+          WhatsApp
+        </label>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{
+            padding: "12px 16px",
+            borderRadius: "12px",
+            border: `1.5px solid ${S.border}`,
+            background: S.cardLight,
+            fontSize: "14px",
+            color: S.text,
+            fontWeight: 600,
+            minWidth: "60px",
+            textAlign: "center"
+          }}>
+            {formData.country ? COUNTRY_CODES[formData.country] || "+00" : "+00"}
+          </div>
+          <input
+            type="tel"
+            value={formData.whatsapp}
+            onChange={(e) => setFormData(prev => ({ ...prev, whatsapp: e.target.value }))}
+            placeholder="1234 5678"
+            style={{
+              flex: 1,
+              padding: "12px 16px",
+              borderRadius: "12px",
+              border: `1.5px solid ${S.border}`,
+              fontSize: "14px",
+              color: S.text,
+              outline: "none",
+              boxSizing: "border-box"
+            }}
+          />
+        </div>
+      </div>
 
       <Input
         label="LinkedIn (username)"
