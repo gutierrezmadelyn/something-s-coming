@@ -124,24 +124,46 @@ export default function AdminPanel({
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const text = event.target?.result as string;
+        let text = event.target?.result as string;
+
+        // Remove BOM if present
+        if (text.charCodeAt(0) === 0xFEFF) {
+          text = text.slice(1);
+        }
+
+        // Normalize line endings (Windows \r\n to \n)
+        text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+
         const lines = text.split("\n").filter(line => line.trim());
 
-        // Detect delimiter (comma or semicolon)
+        if (lines.length < 2) {
+          setImportError("El archivo debe tener al menos una fila de encabezados y una fila de datos");
+          return;
+        }
+
+        // Detect delimiter (tab, semicolon, or comma)
         const firstLine = lines[0];
-        const delimiter = firstLine.includes(";") ? ";" : ",";
+        let delimiter = ",";
+        if (firstLine.includes("\t")) {
+          delimiter = "\t";
+        } else if (firstLine.includes(";")) {
+          delimiter = ";";
+        }
 
         const headers = firstLine.toLowerCase().split(delimiter).map(h => h.trim().replace(/"/g, ""));
 
+        console.log("CSV Headers detectados:", headers);
+        console.log("Delimiter usado:", delimiter === "\t" ? "TAB" : delimiter);
+
         // Check for nombre or "nombre completo"
-        const hasNombre = headers.includes("nombre") || headers.includes("nombre completo");
-        const hasEmail = headers.includes("email") || headers.includes("correo") || headers.includes("correo electronico");
+        const hasNombre = headers.some(h => h.includes("nombre"));
+        const hasEmail = headers.some(h => h.includes("email") || h.includes("correo"));
 
         if (!hasNombre || !hasEmail) {
           const missing = [];
           if (!hasNombre) missing.push("nombre");
           if (!hasEmail) missing.push("email");
-          setImportError(`Columnas requeridas faltantes: ${missing.join(", ")}`);
+          setImportError(`Columnas requeridas faltantes: ${missing.join(", ")}. Columnas encontradas: ${headers.join(", ")}`);
           return;
         }
 
@@ -150,18 +172,28 @@ export default function AdminPanel({
           const row: Record<string, any> = { _row: idx + 2 };
           headers.forEach((h, i) => { row[h] = values[i] || ""; });
 
-          // Normalize field names
-          if (!row.nombre && row["nombre completo"]) row.nombre = row["nombre completo"];
-          if (!row.email && row.correo) row.email = row.correo;
-          if (!row.email && row["correo electronico"]) row.email = row["correo electronico"];
+          // Normalize field names - find any header containing "nombre" or "email"
+          const nombreKey = headers.find(h => h.includes("nombre"));
+          const emailKey = headers.find(h => h.includes("email") || h.includes("correo"));
+
+          if (nombreKey && !row.nombre) row.nombre = row[nombreKey];
+          if (emailKey && !row.email) row.email = row[emailKey];
 
           return row;
         }).filter(row => row.nombre && row.email);
 
+        console.log("Datos parseados:", data);
+
+        if (data.length === 0) {
+          setImportError(`No se encontraron filas validas. Asegurate de que cada fila tenga nombre y email. Total lineas: ${lines.length - 1}`);
+          return;
+        }
+
         setImportData(data);
         setImportError(null);
       } catch (err) {
-        setImportError("Error al procesar el archivo CSV");
+        console.error("Error parsing CSV:", err);
+        setImportError("Error al procesar el archivo CSV: " + (err as Error).message);
       }
     };
     reader.readAsText(file);
