@@ -74,6 +74,17 @@ const WORK_TYPE_OPTIONS = [
   { value: "Ambas", label: "Ambas" },
 ];
 
+const COUNTRY_OPTIONS = [
+  "El Salvador",
+  "Guatemala",
+  "Honduras",
+  "Peru",
+  "Mexico",
+  "Venezuela",
+  "Colombia",
+  "Republica Dominicana",
+];
+
 const AVATAR_COLORS = [
   "#58CC02", "#1CB0F6", "#CE82FF", "#FF4B4B", "#FFC800", "#AFAFAF", "#2851A3"
 ];
@@ -410,11 +421,11 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
       />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-        <Input
+        <Select
           label="Pais"
           value={formData.country}
           onChange={(v) => setFormData(prev => ({ ...prev, country: v }))}
-          placeholder="Ej: Guatemala"
+          options={COUNTRY_OPTIONS}
         />
         <Input
           label="Ciudad"
