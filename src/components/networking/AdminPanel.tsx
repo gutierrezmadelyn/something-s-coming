@@ -407,7 +407,7 @@ export default function AdminPanel({
               </div>
             )}
             <div style={{ marginBottom: "16px" }}>
-              <p style={{ fontSize: "12px", color: S.textSec, marginBottom: "8px" }}>El archivo CSV debe tener las siguientes columnas: <strong>nombre, email</strong> (opcionales: pais, ciudad, rol)</p>
+              <p style={{ fontSize: "12px", color: S.textSec, marginBottom: "8px" }}>El archivo CSV debe tener las siguientes columnas: <strong>nombre, email</strong> (opcionales: pais, tipo de organizacion, tipo de trabajo, tu expertise, whatsapp, linkedin)</p>
               <input type="file" accept=".csv" onChange={handleFileImport} style={{ width: "100%", padding: "12px", borderRadius: "12px", border: `1.5px solid ${S.border}`, fontSize: "14px" }} />
             </div>
             {importData.length > 0 && (

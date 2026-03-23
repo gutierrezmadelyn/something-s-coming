@@ -225,6 +225,13 @@ export default function Networking() {
           ? nameParts[0][0] + nameParts[nameParts.length - 1][0]
           : (nameParts[0] || "??").substring(0, 2);
 
+        // Parse expertise if provided (comma or semicolon separated)
+        let expertiseArray: string[] = [];
+        const expertiseRaw = user.expertise || user["tu expertise"] || "";
+        if (expertiseRaw) {
+          expertiseArray = expertiseRaw.split(/[,;]/).map((e: string) => e.trim()).filter(Boolean);
+        }
+
         const { error: profileError } = await supabase
           .from("profiles")
           .upsert({
@@ -233,7 +240,11 @@ export default function Networking() {
             email: user.email || "",
             country: user.pais || user.country || "",
             city: user.ciudad || user.city || "",
-            role: user.rol || user.role || "",
+            role: user.rol || user.role || user["tipo de organizacion"] || "",
+            work_type: user.work_type || user["tipo de trabajo"] || "",
+            expertise: expertiseArray.length > 0 ? expertiseArray : null,
+            whatsapp: user.whatsapp || "",
+            linkedin: user.linkedin || "",
             avatar_initials: initials.toUpperCase(),
             avatar_color: "#2851A3",
             has_logged_in: false,
