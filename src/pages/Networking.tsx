@@ -1,8 +1,18 @@
 // @ts-nocheck
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { useAuth } from "@/hooks/useAuth";
+import { useProfiles } from "@/hooks/useProfiles";
+import { useCohorts, useIcebreakers } from "@/hooks/useCohorts";
+import { useLeaderboard } from "@/hooks/useCohorts";
+import { useXP } from "@/hooks/useXP";
+import { useMatches, useConversation } from "@/hooks/useMatches";
+import ProfileForm from "@/components/ProfileForm";
+import Onboarding from "@/components/Onboarding";
+import type { Profile } from "@/lib/database.types";
 
 // ============ MAP CONFIG ============
 const MAP_CENTER = [14.5, -87.5];
@@ -52,92 +62,53 @@ const LEAGUE_COLORS = {
   none: "#E5E7EB",
 };
 
-// ============ DATA ============
-const PROFILES = [
-  { id: 1, name: "Betsaida Olivares", country: "Guatemala", city: "Villa Nueva", lat: 14.53, lng: -90.59, role: "Facilitadora", workType: "Organización", org: "Agora Partnerships", pitch: "Transformo procesos empresariales con gamificación y e-learning", expertise: ["Sostenibilidad", "Desarrollo organizacional"], wantsToLearn: "Transformación digital", sectors: ["PyMEs", "OSC"], offers: ["Metodologías probadas", "Experiencia sectorial"], seeks: ["Nuevas metodologías", "Aliados complementarios"], whatsapp: "+502 4212 1291", linkedin: "betsaida-olivares", avatar: "BO", color: "#58CC02", photo: null, lastActive: "2026-03-19T14:30:00", hasLoggedIn: true, swipeCount: 8, showLocation: true, showPhone: true, streak: 7, league: "silver", conversationsStarted: 3, matchCount: 4 },
-  { id: 2, name: "Benjamín Octavio Tapia", country: "Nicaragua", city: "Managua", lat: 12.13, lng: -86.25, role: "Consultor", workType: "Organización", org: "Agora Partnerships", pitch: "Estratega de negocios con 27 años llevando PyMEs al siguiente nivel", expertise: ["Marketing y ventas", "Finanzas"], wantsToLearn: "Sostenibilidad", sectors: ["PyMEs", "Corporativos"], offers: ["Experiencia sectorial", "Mentoría"], seeks: ["Aliados complementarios", "Proyectos conjuntos"], whatsapp: "+505 8823 1488", linkedin: "benjamin-tapia", avatar: "BT", color: "#1CB0F6", photo: null, lastActive: "2026-03-20T09:15:00", hasLoggedIn: true, swipeCount: 12, showLocation: true, showPhone: true, streak: 12, league: "gold", conversationsStarted: 5, matchCount: 6 },
-  { id: 3, name: "Sebastián Guirao", country: "México", city: "Ciudad de México", lat: 19.43, lng: -99.13, role: "Consultor", workType: "Organización", org: "Agora Partnerships", pitch: "Del marketing tradicional al UX: diseño experiencias que venden", expertise: ["Marketing y ventas", "Transformación digital"], wantsToLearn: "Género e inclusión", sectors: ["PyMEs", "Corporativos"], offers: ["Metodologías probadas", "Alianza para proyectos"], seeks: ["Ampliar red", "Experiencia en otra temática"], whatsapp: "+52 1 1158 7378", linkedin: "sebastian-guirao", avatar: "SG", color: "#CE82FF", photo: null, lastActive: "2026-03-18T11:00:00", hasLoggedIn: true, swipeCount: 5, showLocation: false, showPhone: true, streak: 3, league: "bronze", conversationsStarted: 2, matchCount: 3 },
-  { id: 4, name: "Jorge Mario Donado", country: "Colombia", city: "Ibagué", lat: 4.44, lng: -75.24, role: "Consultor", workType: "Organización", org: "Agora Partnerships", pitch: "Ingeniero agroindustrial que conecta calidad, procesos y sostenibilidad", expertise: ["Sostenibilidad", "Finanzas"], wantsToLearn: "Transformación digital", sectors: ["PyMEs", "OSC"], offers: ["Metodologías probadas", "Experiencia sectorial"], seeks: ["Nuevas metodologías", "Proyectos conjuntos"], whatsapp: "+57 318 330 8937", linkedin: "jorge-mario-donado", avatar: "JD", color: "#58CC02", photo: null, lastActive: "2026-03-20T08:00:00", hasLoggedIn: true, swipeCount: 10, showLocation: true, showPhone: true, streak: 9, league: "gold", conversationsStarted: 4, matchCount: 5 },
-  { id: 5, name: "Cristhella Santizo", country: "Guatemala", city: "Ciudad de Guatemala", lat: 14.64, lng: -90.51, role: "Consultora", workType: "Organización", org: "Agora Partnerships", pitch: "Inteligencia de negocios para decisiones que transforman empresas", expertise: ["Finanzas", "Transformación digital"], wantsToLearn: "Sostenibilidad", sectors: ["Corporativos", "PyMEs"], offers: ["Metodologías probadas", "Experiencia sectorial"], seeks: ["Aliados complementarios", "Ampliar red"], whatsapp: "+502 5465 1383", linkedin: "cristhella-santizo", avatar: "CS", color: "#FF4B4B", photo: null, lastActive: "2026-03-15T16:45:00", hasLoggedIn: true, swipeCount: 3, showLocation: true, showPhone: false, streak: 1, league: "bronze", conversationsStarted: 1, matchCount: 2 },
-  { id: 6, name: "Valeria Sequeira", country: "Nicaragua", city: "Granada", lat: 11.93, lng: -85.96, role: "Consultora", workType: "Organización", org: "Agora Partnerships", pitch: "Finanzas con enfoque de género para PyMEs que quieren crecer", expertise: ["Finanzas", "Género e inclusión"], wantsToLearn: "Marketing y ventas", sectors: ["PyMEs", "OSC"], offers: ["Experiencia sectorial", "Mentoría"], seeks: ["Nuevas metodologías", "Aliados complementarios"], whatsapp: "+505 8293 1511", linkedin: "valeria-sequeira", avatar: "VS", color: "#FFC800", photo: null, lastActive: "2026-03-19T10:20:00", hasLoggedIn: true, swipeCount: 7, showLocation: true, showPhone: true, streak: 6, league: "silver", conversationsStarted: 3, matchCount: 4 },
-  { id: 7, name: "Madelyn Gutiérrez", country: "Guatemala", city: "Esquipulas", lat: 14.56, lng: -89.35, role: "Consultora", workType: "Ambas", org: "Agora Partnerships", pitch: "Impulso emprendimientos con transformación digital y marketing", expertise: ["Transformación digital", "Marketing y ventas"], wantsToLearn: "Sostenibilidad", sectors: ["PyMEs", "Sector público"], offers: ["Metodologías probadas", "Alianza para proyectos"], seeks: ["Proyectos conjuntos", "Ampliar red"], whatsapp: "+502 3568 7604", linkedin: "madelyn-gutierrez", avatar: "MG", color: "#1CB0F6", photo: null, lastActive: "2026-03-20T10:00:00", hasLoggedIn: true, swipeCount: 9, showLocation: true, showPhone: true, streak: 5, league: "silver", conversationsStarted: 4, matchCount: 5 },
-  { id: 8, name: "Lucía Mendoza", country: "México", city: "Guadalajara", lat: 20.67, lng: -103.35, role: "Coach", workType: "Independiente", org: null, pitch: "Coaching ejecutivo para líderes que quieren inspirar, no mandar", expertise: ["Liderazgo", "Género e inclusión"], wantsToLearn: "Finanzas", sectors: ["Corporativos", "Educación"], offers: ["Mentoría", "Metodologías probadas"], seeks: ["Aliados complementarios", "Experiencia en otra temática"], whatsapp: "+52 33 1245 6789", linkedin: "lucia-mendoza-coach", avatar: "LM", color: "#FF4B4B", photo: null, lastActive: "2026-03-17T09:00:00", hasLoggedIn: true, swipeCount: 4, showLocation: true, showPhone: true, streak: 2, league: "bronze", conversationsStarted: 2, matchCount: 2 },
-  { id: 9, name: "Carlos Mejía", country: "Honduras", city: "Tegucigalpa", lat: 14.07, lng: -87.19, role: "Consultor", workType: "Independiente", org: null, pitch: "Hago que las PyMEs dejen de temerle a los números", expertise: ["Finanzas", "Desarrollo organizacional"], wantsToLearn: "Transformación digital", sectors: ["PyMEs", "Cooperación internacional"], offers: ["Experiencia sectorial", "Contactos y red"], seeks: ["Nuevas metodologías", "Proyectos conjuntos"], whatsapp: "+504 9876 5432", linkedin: "carlos-mejia-hn", avatar: "CM", color: "#AFAFAF", photo: null, lastActive: null, hasLoggedIn: false, swipeCount: 0, showLocation: true, showPhone: true, streak: 0, league: "none", conversationsStarted: 0, matchCount: 0 },
-  { id: 10, name: "Ana Patricia Solano", country: "Costa Rica", city: "San José", lat: 9.93, lng: -84.08, role: "Facilitadora", workType: "Independiente", org: null, pitch: "Facilito procesos de cambio donde todos se sienten escuchados", expertise: ["Desarrollo organizacional", "Género e inclusión"], wantsToLearn: "Marketing y ventas", sectors: ["OSC", "Cooperación internacional"], offers: ["Metodologías probadas", "Alianza para proyectos"], seeks: ["Ampliar red", "Aliados complementarios"], whatsapp: "+506 8765 4321", linkedin: "ana-patricia-solano", avatar: "AP", color: "#1CB0F6", photo: null, lastActive: "2026-03-20T07:30:00", hasLoggedIn: true, swipeCount: 11, showLocation: true, showPhone: true, streak: 14, league: "diamond", conversationsStarted: 8, matchCount: 10 },
-  { id: 11, name: "Roberto Castañeda", country: "El Salvador", city: "San Salvador", lat: 13.69, lng: -89.19, role: "Capacitador", workType: "Organización", org: "Fundación Empresarial", pitch: "Capacito equipos comerciales para vender con propósito", expertise: ["Marketing y ventas", "Liderazgo"], wantsToLearn: "Sostenibilidad", sectors: ["PyMEs", "Corporativos"], offers: ["Metodologías probadas", "Contactos y red"], seeks: ["Experiencia en otra temática", "Proyectos conjuntos"], whatsapp: "+503 7654 3210", linkedin: "roberto-castaneda-sv", avatar: "RC", color: "#FF4B4B", photo: null, lastActive: "2026-03-16T14:00:00", hasLoggedIn: true, swipeCount: 2, showLocation: true, showPhone: true, streak: 0, league: "bronze", conversationsStarted: 1, matchCount: 1 },
-  { id: 12, name: "Diana Marcela Ortiz", country: "Colombia", city: "Bogotá", lat: 4.71, lng: -74.07, role: "Consultora", workType: "Independiente", org: null, pitch: "Diseño estrategias de sostenibilidad que también son rentables", expertise: ["Sostenibilidad", "Finanzas"], wantsToLearn: "Género e inclusión", sectors: ["Corporativos", "Cooperación internacional"], offers: ["Experiencia sectorial", "Alianza para proyectos"], seeks: ["Aliados complementarios", "Ampliar red"], whatsapp: "+57 300 123 4567", linkedin: "diana-marcela-ortiz", avatar: "DO", color: "#58CC02", photo: null, lastActive: "2026-03-19T18:00:00", hasLoggedIn: true, swipeCount: 6, showLocation: true, showPhone: true, streak: 4, league: "silver", conversationsStarted: 3, matchCount: 4 },
-  { id: 13, name: "Fernando Villanueva", country: "Guatemala", city: "Quetzaltenango", lat: 14.83, lng: -91.52, role: "Coach", workType: "Ambas", org: "Cámara de Comercio", pitch: "Acompaño emprendedores rurales a escalar sus negocios", expertise: ["Desarrollo organizacional", "Finanzas"], wantsToLearn: "Transformación digital", sectors: ["PyMEs", "Sector público"], offers: ["Mentoría", "Contactos y red"], seeks: ["Nuevas metodologías", "Aliados complementarios"], whatsapp: "+502 4567 8901", linkedin: "fernando-villanueva-gt", avatar: "FV", color: "#AFAFAF", photo: null, lastActive: null, hasLoggedIn: false, swipeCount: 0, showLocation: false, showPhone: false, streak: 0, league: "none", conversationsStarted: 0, matchCount: 0 },
-  { id: 14, name: "Gabriela Pineda", country: "Honduras", city: "San Pedro Sula", lat: 15.5, lng: -88.03, role: "Facilitadora", workType: "Independiente", org: null, pitch: "Género no es un tema aparte, es el lente para verlo todo", expertise: ["Género e inclusión", "Liderazgo"], wantsToLearn: "Finanzas", sectors: ["OSC", "Cooperación internacional"], offers: ["Metodologías probadas", "Mentoría"], seeks: ["Proyectos conjuntos", "Experiencia en otra temática"], whatsapp: "+504 3210 9876", linkedin: "gabriela-pineda-hn", avatar: "GP", color: "#CE82FF", photo: null, lastActive: "2026-03-14T12:00:00", hasLoggedIn: true, swipeCount: 1, showLocation: true, showPhone: true, streak: 1, league: "bronze", conversationsStarted: 1, matchCount: 1 },
-  { id: 15, name: "Andrés Felipe Rojas", country: "Colombia", city: "Medellín", lat: 6.25, lng: -75.56, role: "Consultor", workType: "Independiente", org: null, pitch: "Llevo la transformación digital a empresas que aún le temen", expertise: ["Transformación digital", "Marketing y ventas"], wantsToLearn: "Desarrollo organizacional", sectors: ["PyMEs", "Corporativos"], offers: ["Metodologías probadas", "Alianza para proyectos"], seeks: ["Ampliar red", "Contactos y red"], whatsapp: "+57 311 987 6543", linkedin: "andres-felipe-rojas", avatar: "AF", color: "#1CB0F6", photo: null, lastActive: "2026-03-20T06:45:00", hasLoggedIn: true, swipeCount: 8, showLocation: true, showPhone: true, streak: 8, league: "silver", conversationsStarted: 4, matchCount: 5 },
-  { id: 16, name: "María José Calderón", country: "Costa Rica", city: "Heredia", lat: 10.0, lng: -84.12, role: "Capacitadora", workType: "Organización", org: "TEC Costa Rica", pitch: "Enseño finanzas como si fuera un juego, porque así se aprende", expertise: ["Finanzas", "Desarrollo organizacional"], wantsToLearn: "Género e inclusión", sectors: ["Educación", "PyMEs"], offers: ["Metodologías probadas", "Experiencia sectorial"], seeks: ["Aliados complementarios", "Nuevas metodologías"], whatsapp: "+506 7012 3456", linkedin: "maria-jose-calderon-cr", avatar: "MJ", color: "#FFC800", photo: null, lastActive: "2026-03-18T15:30:00", hasLoggedIn: true, swipeCount: 6, showLocation: true, showPhone: true, streak: 3, league: "bronze", conversationsStarted: 2, matchCount: 3 },
-];
-
-// ============ COHORTS ============
-const COHORTS = [
-  {
-    id: "ttt-2026",
-    name: "Formando Catalizadores",
-    shortName: "TTT",
-    description: "Programa de formación de catalizadores empresariales — Cohorte 2026",
-    color: "#2851A3",
-    icon: "🚀",
-    profileIds: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
-    isActive: true,
-  },
-  {
-    id: "innovation-2026",
-    name: "Innovación Empresarial",
-    shortName: "IE",
-    description: "Taller de innovación para líderes de PyMEs — Marzo 2026",
-    color: "#7C3AED",
-    icon: "💡",
-    profileIds: [1, 3, 5, 7, 10, 12, 15],
-    isActive: true,
-  },
-  {
-    id: "gender-2026",
-    name: "Liderazgo con Perspectiva de Género",
-    shortName: "LPG",
-    description: "Cohorte especializada en género e inclusión — Q2 2026",
-    color: "#E11D48",
-    icon: "🌟",
-    profileIds: [5, 6, 7, 8, 10, 12, 14, 16],
-    isActive: true,
-  },
-];
-
-// Calculate XP for each profile
-const calcXP = (profile) => {
-  let xp = 0;
-  // Profile complete
-  if (profile.pitch && profile.expertise?.length && profile.wantsToLearn && profile.sectors?.length) {
-    xp += XP_VALUES.profileComplete;
-  }
-  // Conversations started
-  xp += (profile.conversationsStarted || 0) * XP_VALUES.conversationStarted;
-  // Matches
-  xp += (profile.matchCount || 0) * XP_VALUES.matchMade;
-  // Swipes
-  xp += (profile.swipeCount || 0) * XP_VALUES.swipe;
-  return xp;
+// Helper function to convert DB profile to legacy format
+const convertProfileToLegacy = (dbProfile: Profile) => {
+  if (!dbProfile) return null;
+  return {
+    id: dbProfile.id,
+    name: dbProfile.name || "",
+    country: dbProfile.country || "",
+    city: dbProfile.city || "",
+    lat: dbProfile.lat || 14.5,
+    lng: dbProfile.lng || -87.5,
+    role: dbProfile.role || "",
+    workType: dbProfile.work_type || "Independiente",
+    org: dbProfile.organization || null,
+    pitch: dbProfile.pitch || "",
+    expertise: dbProfile.expertise || [],
+    wantsToLearn: dbProfile.wants_to_learn || "",
+    sectors: dbProfile.sectors || [],
+    offers: dbProfile.offers || [],
+    seeks: dbProfile.seeks || [],
+    whatsapp: dbProfile.whatsapp || "",
+    linkedin: dbProfile.linkedin || "",
+    avatar: dbProfile.avatar_initials || dbProfile.name?.split(" ").map(n => n[0]).join("").substring(0, 2) || "??",
+    color: dbProfile.avatar_color || "#1CB0F6",
+    photo: dbProfile.photo_url || null,
+    lastActive: dbProfile.last_active || null,
+    hasLoggedIn: dbProfile.has_logged_in || false,
+    swipeCount: dbProfile.swipe_count || 0,
+    showLocation: dbProfile.show_location ?? true,
+    showPhone: dbProfile.show_phone ?? true,
+    streak: dbProfile.streak || 0,
+    league: dbProfile.league || "none",
+    conversationsStarted: dbProfile.conversations_started || 0,
+    matchCount: dbProfile.match_count || 0,
+    xp: dbProfile.xp || 0,
+  };
 };
 
-// Add XP to each profile
-PROFILES.forEach(p => {
-  p.xp = calcXP(p);
-});
-
-const ICEBREAKERS = [
-  "Ambos trabajan con PyMEs. ¿Cuál ha sido el mayor reto con un cliente este año?",
-  "Tienen expertises complementarias. ¿Qué proyecto soñado harían juntos?",
-  "¿Cuál es la herramienta que más les ha cambiado la forma de trabajar?",
-  "Si pudieran resolver UN problema del ecosistema emprendedor en LATAM, ¿cuál sería?",
-  "¿Cuál ha sido su experiencia más memorable como catalizador?",
-  "¿Qué consejo le darían a alguien que empieza en consultoría?",
-  "Si combinaran sus habilidades en un solo servicio, ¿cómo se llamaría?",
+// Default icebreakers (fallback if DB is empty)
+const DEFAULT_ICEBREAKERS = [
+  "Ambos trabajan con PyMEs. Cual ha sido el mayor reto con un cliente este anio?",
+  "Tienen expertises complementarias. Que proyecto sonado harian juntos?",
+  "Cual es la herramienta que mas les ha cambiado la forma de trabajar?",
+  "Si pudieran resolver UN problema del ecosistema emprendedor en LATAM, cual seria?",
+  "Cual ha sido su experiencia mas memorable como catalizador?",
+  "Que consejo le darian a alguien que empieza en consultoria?",
+  "Si combinaran sus habilidades en un solo servicio, como se llamaria?",
 ];
-
-const CURRENT_USER_ID = 7;
 
 const calcCompat = (a, b) => {
   let s = 0;
@@ -321,7 +292,7 @@ const LevelProgressBar = ({ profile }) => {
   );
 };
 
-// ============ GOOGLE MAPS ============
+// ============ MAP (Leaflet + OpenStreetMap) ============
 // Custom marker icon creator for Leaflet
 const createCustomIcon = (color) => {
   return L.divIcon({
@@ -340,10 +311,10 @@ const createCustomIcon = (color) => {
   });
 };
 
-function MapView({ profiles, privacySettings }) {
+function MapView({ profiles, privacySettings, currentUserId }) {
   // Filter profiles that have location visible
   const visibleProfiles = profiles.filter(p => {
-    if (p.id === CURRENT_USER_ID) return privacySettings.showLocation;
+    if (p.id === currentUserId) return privacySettings.showLocation;
     return p.showLocation !== false;
   });
 
@@ -413,12 +384,21 @@ function MapView({ profiles, privacySettings }) {
 }
 
 // ============ PROFILE CARD ============
-function ProfileCard({ profile, currentUser, onLeft, onRight }) {
+function ProfileCard({ profile, currentUser, onLeft, onRight, getCompatibility }) {
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [compat, setCompat] = useState(() => calcCompat(currentUser, profile));
   const startX = useRef(0);
-  const compat = calcCompat(currentUser, profile);
+
+  // Load compatibility from database if function provided
+  useEffect(() => {
+    if (getCompatibility && currentUser?.id && profile?.id) {
+      getCompatibility(currentUser.id, profile.id).then(score => {
+        if (score > 0) setCompat(score);
+      });
+    }
+  }, [getCompatibility, currentUser?.id, profile?.id]);
 
   const onS = cx => { startX.current = cx; setDragging(true); };
   const onM = cx => { if (dragging) setDragX(cx - startX.current); };
@@ -524,13 +504,38 @@ function MatchAnim({ profile, icebreaker, onClose }) {
 }
 
 // ============ CHAT ============
-function ChatView({ profile, icebreaker, onBack }) {
-  const [messages, setMessages] = useState([{ from: "system", text: icebreaker }]);
+function ChatView({ profile, icebreaker, onBack, conversationId, currentUserId }) {
   const [input, setInput] = useState("");
-  const send = () => { if (!input.trim()) return; setMessages(p => [...p, { from: "me", text: input }]); setInput(""); };
+  const { messages: dbMessages, loading, sendMessage } = useConversation(conversationId, currentUserId);
 
-  const showPhone = profile.showPhone !== false;
-  const showLocation = profile.showLocation !== false;
+  // Convert DB messages to display format and add icebreaker as first message
+  const displayMessages = [
+    { from: "system", text: icebreaker, id: "icebreaker" },
+    ...dbMessages.map(m => ({
+      from: m.sender_id === currentUserId ? "me" : "them",
+      text: m.content,
+      id: m.id,
+    }))
+  ];
+
+  const send = async () => {
+    if (!input.trim()) return;
+    const content = input.trim();
+    setInput("");
+    await sendMessage(content);
+  };
+
+  const showPhone = profile?.showPhone !== false;
+  const showLocation = profile?.showLocation !== false;
+
+  if (!profile) {
+    return (
+      <div style={{ textAlign: "center", padding: "60px 20px" }}>
+        <p style={{ color: S.textSec }}>Perfil no encontrado</p>
+        <Btn onClick={onBack} variant="outline" style={{ marginTop: "16px" }}>Volver</Btn>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 130px)" }}>
@@ -563,8 +568,13 @@ function ChatView({ profile, icebreaker, onBack }) {
         </div>
       </div>
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", paddingBottom: "12px" }}>
-        {messages.map((m, i) => (
-          <div key={i} style={{ alignSelf: m.from === "me" ? "flex-end" : m.from === "system" ? "center" : "flex-start", maxWidth: m.from === "system" ? "90%" : "80%" }}>
+        {loading && (
+          <div style={{ textAlign: "center", padding: "20px", color: S.textTer }}>
+            Cargando mensajes...
+          </div>
+        )}
+        {displayMessages.map((m) => (
+          <div key={m.id} style={{ alignSelf: m.from === "me" ? "flex-end" : m.from === "system" ? "center" : "flex-start", maxWidth: m.from === "system" ? "90%" : "80%" }}>
             {m.from === "system" ? (
               <div style={{ background: S.blueBg, border: `2px solid ${S.blue}20`, borderRadius: "16px", padding: "12px 14px", textAlign: "center" }}>
                 <p style={{ fontSize: "9px", textTransform: "uppercase", color: S.blue, letterSpacing: "0.08em", margin: "0 0 4px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Pregunta rompehielo</p>
@@ -626,8 +636,28 @@ function MatchesList({ matches, allProfiles, onOpenChat }) {
 }
 
 // ============ LEADERBOARD ============
-function Leaderboard({ profiles, matches = [], currentUserId, onContact }) {
-  const sorted = [...profiles].filter(p => p.hasLoggedIn).sort((a, b) => (b.xp || 0) - (a.xp || 0));
+function Leaderboard({ profiles, matches = [], currentUserId, onContact, cohortId }) {
+  // Use the leaderboard hook for ranking from Supabase
+  const { leaderboard, loading: leaderboardLoading } = useLeaderboard(cohortId);
+
+  // Convert leaderboard entries to profile-like objects for display
+  const leaderboardProfiles = leaderboard.map(entry => ({
+    id: entry.user_id,
+    name: entry.name,
+    avatar: entry.avatar_initials || entry.name?.split(" ").map(n => n[0]).join("").substring(0, 2) || "??",
+    color: entry.avatar_color || "#1CB0F6",
+    photo: entry.photo_url,
+    xp: entry.xp,
+    league: entry.league,
+    rank: entry.rank,
+    hasLoggedIn: true,
+  }));
+
+  // Use leaderboard data if available, otherwise fall back to profiles
+  const sorted = leaderboardProfiles.length > 0
+    ? leaderboardProfiles
+    : [...profiles].filter(p => p.hasLoggedIn).sort((a, b) => (b.xp || 0) - (a.xp || 0));
+
   const top3 = sorted.slice(0, 3);
   const rest = sorted.slice(3);
 
@@ -768,7 +798,7 @@ function Leaderboard({ profiles, matches = [], currentUserId, onContact }) {
 }
 
 // ============ MY PROFILE ============
-function MyProfile({ profile, privacySettings, onPrivacyChange, matches }) {
+function MyProfile({ profile, privacySettings, onPrivacyChange, matches, onEdit }) {
   const [photoHover, setPhotoHover] = useState(false);
 
   const sections = [
@@ -848,19 +878,19 @@ function MyProfile({ profile, privacySettings, onPrivacyChange, matches }) {
             <div style={{ display: "flex", flexWrap: "wrap" }}>{s.items.map(i => <Tag key={i} bg={s.bg} color={s.color}>{i}</Tag>)}</div>
           </div>
         ))}
-        <Btn variant="outline" style={{ width: "100%", marginTop: "12px" }}>✏️ Editar mi perfil</Btn>
+        <Btn variant="outline" style={{ width: "100%", marginTop: "12px" }} onClick={onEdit}>✏️ Editar mi perfil</Btn>
       </div>
     </div>
   );
 }
 
 // ============ ADMIN ============
-function AdminPanel({ allProfiles, matches, onManualMatch, cohortName }) {
+function AdminPanel({ allProfiles, matches, onManualMatch, cohortName, currentUserId }) {
   const [tab, setTab] = useState("alerts");
   const noLogin = allProfiles.filter(p => !p.hasLoggedIn);
   const noSwipe = allProfiles.filter(p => p.hasLoggedIn && p.swipeCount === 0);
   const matchedIds = new Set(matches.map(m => m.id));
-  matchedIds.add(CURRENT_USER_ID);
+  if (currentUserId) matchedIds.add(currentUserId);
   const noMatch = allProfiles.filter(p => !matchedIds.has(p.id));
   const noConvo = matches.filter(m => !m.hasConversation);
   const total = noLogin.length + noSwipe.length + noMatch.length + noConvo.length;
@@ -977,12 +1007,22 @@ function AdminPanel({ allProfiles, matches, onManualMatch, cohortName }) {
 
 // ============ MAIN ============
 export default function Networking() {
+  const navigate = useNavigate();
+
+  // Auth and data hooks
+  const { user, profile: authProfile, loading: authLoading, signOut, updateProfile } = useAuth();
+  const currentUserId = user?.id;
+
+  // Cohorts hook
+  const { cohorts, userCohorts, loading: cohortsLoading } = useCohorts(currentUserId);
+
+  // Icebreakers hook
+  const { icebreakers, getRandomIcebreaker } = useIcebreakers();
+  const ICEBREAKERS = icebreakers.length > 0 ? icebreakers : DEFAULT_ICEBREAKERS;
+
+  // State
   const [tab, setTab] = useState("swipe");
-  const [matches, setMatches] = useState([
-    { id: 6, type: "cupido", icebreaker: ICEBREAKERS[0], hasConversation: false },
-    { id: 9, type: "cupido", icebreaker: ICEBREAKERS[3], hasConversation: false },
-    { id: 12, type: "organic", icebreaker: ICEBREAKERS[5], hasConversation: true },
-  ]);
+  const [localMatches, setLocalMatches] = useState([]);
   const [showMatch, setShowMatch] = useState(null);
   const [swiped, setSwiped] = useState(new Set());
   const [chatMatch, setChatMatch] = useState(null);
@@ -990,59 +1030,248 @@ export default function Networking() {
     showLocation: true,
     showPhone: true,
   });
-  const [selectedCohortId, setSelectedCohortId] = useState("ttt-2026");
+  const [selectedCohortId, setSelectedCohortId] = useState<string | null>(null);
   const [showCohortPicker, setShowCohortPicker] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [allLoadedProfiles, setAllLoadedProfiles] = useState([]);
 
-  const selectedCohort = COHORTS.find(c => c.id === selectedCohortId);
-  const cohortProfiles = selectedCohort
-    ? PROFILES.filter(p => selectedCohort.profileIds.includes(p.id))
-    : PROFILES;
+  // Profiles hook - depends on selectedCohortId
+  const { profiles: dbProfiles, loading: profilesLoading, recordSwipe, getCompatibility } = useProfiles({
+    currentUserId,
+    cohortId: selectedCohortId || undefined,
+    excludeSwiped: true,
+  });
 
-  const me = PROFILES.find(p => p.id === CURRENT_USER_ID);
-  const sorted = cohortProfiles.filter(p => p.id !== CURRENT_USER_ID && !swiped.has(p.id)).sort((a, b) => calcCompat(me, b) - calcCompat(me, a));
+  // Matches hook
+  const { matches: dbMatches, loading: matchesLoading, startConversation } = useMatches(currentUserId);
+
+  // XP system
+  const { awardXP } = useXP(currentUserId);
+
+  // Convert profile from DB format to legacy format
+  const me = authProfile ? convertProfileToLegacy(authProfile) : null;
+
+  // Convert all profiles to legacy format
+  const cohortProfiles = dbProfiles.map(convertProfileToLegacy).filter(Boolean);
+
+  // Store all profiles for lookups
+  useEffect(() => {
+    if (cohortProfiles.length > 0) {
+      setAllLoadedProfiles(prev => {
+        const existing = new Map(prev.map(p => [p.id, p]));
+        cohortProfiles.forEach(p => existing.set(p.id, p));
+        return Array.from(existing.values());
+      });
+    }
+  }, [cohortProfiles]);
+
+  // Also add matched profiles
+  useEffect(() => {
+    if (dbMatches.length > 0) {
+      const matchedProfiles = dbMatches
+        .filter(m => m.matchedProfile)
+        .map(m => convertProfileToLegacy(m.matchedProfile));
+
+      setAllLoadedProfiles(prev => {
+        const existing = new Map(prev.map(p => [p.id, p]));
+        matchedProfiles.forEach(p => {
+          if (p) existing.set(p.id, p);
+        });
+        return Array.from(existing.values());
+      });
+    }
+  }, [dbMatches]);
+
+  // Convert matches from DB format
+  useEffect(() => {
+    if (dbMatches.length > 0) {
+      const converted = dbMatches.map(m => ({
+        id: m.user_id === currentUserId ? m.matched_user_id : m.user_id,
+        type: m.match_type || "organic",
+        icebreaker: m.icebreaker || ICEBREAKERS[0],
+        hasConversation: m.has_conversation || !!m.conversation,
+        matchId: m.id,
+        conversationId: m.conversation?.id || null,
+      }));
+      setLocalMatches(converted);
+    }
+  }, [dbMatches, currentUserId, ICEBREAKERS]);
+
+  // Sync privacy settings with profile
+  useEffect(() => {
+    if (authProfile) {
+      setPrivacySettings({
+        showLocation: authProfile.show_location ?? true,
+        showPhone: authProfile.show_phone ?? true,
+      });
+    }
+  }, [authProfile]);
+
+  // Check if user needs onboarding
+  useEffect(() => {
+    if (authProfile && !authProfile.has_logged_in) {
+      setShowOnboarding(true);
+    }
+  }, [authProfile]);
+
+  // Set default cohort when cohorts load
+  useEffect(() => {
+    if (cohorts.length > 0 && !selectedCohortId) {
+      // Try to use user's first cohort, or first available cohort
+      const firstUserCohort = userCohorts[0];
+      const firstCohort = cohorts[0];
+      setSelectedCohortId(firstUserCohort || firstCohort?.id || null);
+    }
+  }, [cohorts, userCohorts, selectedCohortId]);
+
+  const selectedCohort = cohorts.find(c => c.id === selectedCohortId);
+
+  // Sort profiles by compatibility
+  const sorted = cohortProfiles
+    .filter(p => p.id !== currentUserId && !swiped.has(p.id))
+    .sort((a, b) => (me ? calcCompat(me, b) - calcCompat(me, a) : 0));
   const current = sorted[0];
 
   useEffect(() => { setSwiped(new Set()); }, [selectedCohortId]);
 
-  const swipe = dir => {
-    if (!current) return;
+  const swipe = async (dir) => {
+    if (!current || !currentUserId) return;
+
     setSwiped(p => new Set([...p, current.id]));
-    if (dir === "right" && Math.random() > 0.35) {
-      const ice = ICEBREAKERS[Math.floor(Math.random() * ICEBREAKERS.length)];
-      setMatches(p => [...p, { id: current.id, type: "organic", icebreaker: ice, hasConversation: false }]);
+
+    // Record swipe in database
+    const result = await recordSwipe(current.id, dir);
+
+    // Award XP for swipe
+    awardXP('swipe');
+
+    if (result.isMatch) {
+      // Award XP for match
+      awardXP('match');
+
+      const ice = await getRandomIcebreaker();
+      setLocalMatches(p => [...p, {
+        id: current.id,
+        type: "organic",
+        icebreaker: ice,
+        hasConversation: false,
+        matchId: result.matchId
+      }]);
       setShowMatch({ profile: current, icebreaker: ice });
     }
   };
 
-  const openChat = m => { setChatMatch(m); setTab("chat"); setMatches(p => p.map(x => x.id === m.id ? { ...x, hasConversation: true } : x)); };
+  const openChat = async (m) => {
+    let conversationId = m.conversationId;
+    const isNewConversation = !m.hasConversation && !conversationId;
 
-  const manualMatch = profile => {
-    const ice = ICEBREAKERS[Math.floor(Math.random() * ICEBREAKERS.length)];
-    if (!matches.find(m => m.id === profile.id)) {
-      setMatches(p => [...p, { id: profile.id, type: "cupido", icebreaker: ice, hasConversation: false }]);
+    // Start conversation if we have a matchId but no conversationId
+    if (m.matchId && !conversationId) {
+      const conversation = await startConversation(m.matchId);
+      conversationId = conversation?.id;
+
+      // Award XP for starting a new conversation
+      if (isNewConversation && conversationId) {
+        awardXP('conversation_started');
+      }
+    }
+
+    setChatMatch({ ...m, conversationId });
+    setTab("chat");
+    setLocalMatches(p => p.map(x => x.id === m.id ? { ...x, hasConversation: true, conversationId } : x));
+  };
+
+  const manualMatch = async (profile) => {
+    const ice = await getRandomIcebreaker();
+    if (!localMatches.find(m => m.id === profile.id)) {
+      setLocalMatches(p => [...p, { id: profile.id, type: "cupido", icebreaker: ice, hasConversation: false }]);
     }
   };
 
-  const contactFromLeaderboard = (profile) => {
-    const existing = matches.find(m => m.id === profile.id);
+  const contactFromLeaderboard = async (profile) => {
+    const existing = localMatches.find(m => m.id === profile.id);
     if (existing) {
       openChat(existing);
     } else {
-      const ice = ICEBREAKERS[Math.floor(Math.random() * ICEBREAKERS.length)];
+      const ice = await getRandomIcebreaker();
       const newMatch = { id: profile.id, type: "cupido", icebreaker: ice, hasConversation: false };
-      setMatches(p => [...p, newMatch]);
+      setLocalMatches(p => [...p, newMatch]);
       openChat(newMatch);
     }
+  };
+
+  const handlePrivacyChange = async (newSettings) => {
+    setPrivacySettings(newSettings);
+    await updateProfile({
+      show_location: newSettings.showLocation,
+      show_phone: newSettings.showPhone,
+    });
+  };
+
+  const handleSaveProfile = async (updates: Partial<Profile>) => {
+    // Check if this is completing the profile for the first time
+    const isCompletingProfile = showOnboarding || !authProfile?.has_logged_in;
+
+    await updateProfile(updates);
+
+    // Award XP for completing profile (only on first completion)
+    if (isCompletingProfile) {
+      awardXP('profile_complete');
+    }
+
+    setShowEditProfile(false);
+    setShowOnboarding(false);
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/auth");
   };
 
   const tabs = [
     { id: "swipe", label: "Explorar", icon: "🔍" },
     { id: "leaderboard", label: "Ranking", icon: "🏆" },
-    { id: "matches", label: "Conexiones", icon: "🎯", badge: matches.length },
+    { id: "matches", label: "Conexiones", icon: "🎯", badge: localMatches.length || undefined },
     { id: "map", label: "Mapa", icon: "🗺️" },
     { id: "profile", label: "Perfil", icon: "👤" },
     { id: "admin", label: "Admin", icon: "🛡️" },
   ];
+
+  // Show onboarding if needed
+  if (showOnboarding && authProfile) {
+    return (
+      <Onboarding
+        profile={authProfile}
+        onComplete={handleSaveProfile}
+      />
+    );
+  }
+
+  // Loading state
+  if (authLoading || (profilesLoading && cohortProfiles.length === 0)) {
+    return (
+      <div style={{ minHeight: "100vh", background: S.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+        <div style={{ textAlign: "center" }}>
+          <div style={{
+            width: "48px",
+            height: "48px",
+            border: `4px solid ${S.blue}20`,
+            borderTopColor: S.blue,
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite",
+            margin: "0 auto 16px"
+          }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "24px", fontWeight: 700, color: S.blue, margin: 0 }}>
+            Negoworking
+          </h1>
+          <p style={{ color: S.textSec, fontSize: "13px", marginTop: "8px" }}>Cargando perfiles...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: S.bg, fontFamily: "'DM Sans', sans-serif", color: S.text }}>
@@ -1060,6 +1289,9 @@ export default function Networking() {
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <StreakChip streak={me?.streak || 0}/>
           <XPChip xp={me?.xp || 0}/>
+          <button onClick={handleLogout} style={{ padding: "6px 12px", borderRadius: "8px", background: S.cardLight, border: "none", color: S.textSec, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>
+            Salir
+          </button>
         </div>
       </div>
 
@@ -1068,44 +1300,56 @@ export default function Networking() {
         <div style={{ position: "fixed", top: 56, left: 0, right: 0, zIndex: 150, background: "rgba(250,251,252,0.98)", backdropFilter: "blur(12px)", borderBottom: `1px solid ${S.border}`, padding: "12px 20px" }}>
           <div style={{ maxWidth: "440px", margin: "0 auto" }}>
             <p style={{ fontSize: "11px", color: S.textTer, textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, margin: "0 0 8px", fontFamily: "'DM Sans', sans-serif" }}>Seleccionar cohorte</p>
-            {COHORTS.filter(c => c.isActive).map(c => (
+            {cohorts.filter(c => c.is_active).map(c => (
               <button key={c.id} onClick={() => { setSelectedCohortId(c.id); setShowCohortPicker(false); }}
-                style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 12px", marginBottom: "6px", borderRadius: "12px", background: c.id === selectedCohortId ? `${c.color}12` : S.card, border: `1.5px solid ${c.id === selectedCohortId ? c.color : S.border}`, cursor: "pointer", textAlign: "left" }}>
-                <span style={{ fontSize: "20px" }}>{c.icon}</span>
+                style={{ display: "flex", alignItems: "center", gap: "10px", width: "100%", padding: "10px 12px", marginBottom: "6px", borderRadius: "12px", background: c.id === selectedCohortId ? `${c.color || S.blue}12` : S.card, border: `1.5px solid ${c.id === selectedCohortId ? (c.color || S.blue) : S.border}`, cursor: "pointer", textAlign: "left" }}>
+                <span style={{ fontSize: "20px" }}>{c.icon || "📋"}</span>
                 <div style={{ flex: 1 }}>
                   <span style={{ fontSize: "13px", fontWeight: 600, color: S.text, fontFamily: "'DM Sans', sans-serif" }}>{c.name}</span>
                   <p style={{ margin: "2px 0 0", fontSize: "11px", color: S.textSec, fontFamily: "'DM Sans', sans-serif" }}>{c.description}</p>
                 </div>
                 <span style={{ fontSize: "10px", color: S.textTer, background: S.cardLight, padding: "2px 8px", borderRadius: "6px", fontWeight: 600, fontFamily: "'DM Sans', sans-serif" }}>
-                  {c.profileIds.length}
+                  {c.memberCount || 0}
                 </span>
               </button>
             ))}
+            {cohorts.length === 0 && (
+              <p style={{ textAlign: "center", color: S.textTer, padding: "20px", fontSize: "13px" }}>
+                No hay cohortes disponibles
+              </p>
+            )}
           </div>
         </div>
       )}
 
       <div style={{ maxWidth: "440px", margin: "0 auto", padding: "14px 14px 100px", minHeight: "calc(100vh - 130px)" }}>
-        {tab === "swipe" && (current ? <ProfileCard profile={current} currentUser={me} onLeft={() => swipe("left")} onRight={() => swipe("right")}/> : (
+        {tab === "swipe" && (current ? <ProfileCard profile={current} currentUser={me} onLeft={() => swipe("left")} onRight={() => swipe("right")} getCompatibility={getCompatibility}/> : (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
             <div style={{ fontSize: "56px", marginBottom: "12px" }}>🎉</div>
-            <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, fontSize: "20px", color: S.text }}>¡Exploraste todos!</h3>
+            <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, fontSize: "20px", color: S.text }}>Exploraste todos!</h3>
             <p style={{ fontSize: "14px", color: S.textSec, fontFamily: "'DM Sans', sans-serif" }}>Revisa tus conexiones y conecta</p>
           </div>
         ))}
-        {tab === "map" && <MapView profiles={cohortProfiles} privacySettings={privacySettings}/>}
-        {tab === "leaderboard" && <Leaderboard profiles={cohortProfiles} matches={matches} currentUserId={CURRENT_USER_ID} onContact={contactFromLeaderboard}/>}
-        {tab === "matches" && <MatchesList matches={matches} allProfiles={PROFILES} onOpenChat={openChat}/>}
-        {tab === "chat" && chatMatch && <ChatView profile={PROFILES.find(p => p.id === chatMatch.id)} icebreaker={chatMatch.icebreaker} onBack={() => setTab("matches")}/>}
-        {tab === "profile" && <MyProfile profile={me} privacySettings={privacySettings} onPrivacyChange={setPrivacySettings} matches={matches}/>}
-        {tab === "admin" && <AdminPanel allProfiles={cohortProfiles} matches={matches} onManualMatch={manualMatch} cohortName={selectedCohort?.name}/>}
+        {tab === "map" && <MapView profiles={[...cohortProfiles, ...(me ? [me] : [])]} privacySettings={privacySettings} currentUserId={currentUserId}/>}
+        {tab === "leaderboard" && <Leaderboard profiles={cohortProfiles} matches={localMatches} currentUserId={currentUserId} onContact={contactFromLeaderboard} cohortId={selectedCohortId}/>}
+        {tab === "matches" && <MatchesList matches={localMatches} allProfiles={allLoadedProfiles} onOpenChat={openChat}/>}
+        {tab === "chat" && chatMatch && <ChatView profile={allLoadedProfiles.find(p => p.id === chatMatch.id)} icebreaker={chatMatch.icebreaker} onBack={() => setTab("matches")} conversationId={chatMatch.conversationId} currentUserId={currentUserId}/>}
+        {tab === "profile" && !showEditProfile && <MyProfile profile={me} privacySettings={privacySettings} onPrivacyChange={handlePrivacyChange} matches={localMatches} onEdit={() => setShowEditProfile(true)}/>}
+        {tab === "profile" && showEditProfile && (
+          <ProfileForm
+            profile={authProfile}
+            onSave={handleSaveProfile}
+            onCancel={() => setShowEditProfile(false)}
+          />
+        )}
+        {tab === "admin" && <AdminPanel allProfiles={cohortProfiles} matches={localMatches} onManualMatch={manualMatch} cohortName={selectedCohort?.name} currentUserId={currentUserId}/>}
       </div>
 
-      {tab !== "chat" && (
+      {tab !== "chat" && !showEditProfile && (
         <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "rgba(250,251,252,0.95)", backdropFilter: "blur(12px)", borderTop: `1px solid ${S.border}`, display: "flex", justifyContent: "center", padding: "6px 0 10px", zIndex: 100 }}>
           <div style={{ display: "flex", maxWidth: "440px", width: "100%", justifyContent: "space-around" }}>
             {tabs.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", cursor: "pointer", padding: "4px 12px", color: tab === t.id ? S.blue : S.textTer, transition: "color 0.2s", position: "relative" }}>
+              <button key={t.id} onClick={() => { setTab(t.id); setShowEditProfile(false); }} style={{ background: "none", border: "none", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px", cursor: "pointer", padding: "4px 12px", color: tab === t.id ? S.blue : S.textTer, transition: "color 0.2s", position: "relative" }}>
                 <span style={{ fontSize: "18px" }}>{t.icon}</span>
                 <span style={{ fontSize: "10px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>{t.label}</span>
                 {t.badge && <span style={{ position: "absolute", top: -2, right: 4, background: S.blue, color: "#fff", fontSize: "8px", fontWeight: 700, width: 15, height: 15, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'DM Sans', sans-serif" }}>{t.badge}</span>}
