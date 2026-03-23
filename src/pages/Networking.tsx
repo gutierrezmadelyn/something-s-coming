@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { useProfiles } from "@/hooks/useProfiles";
+import { useProfiles, useAllProfiles } from "@/hooks/useProfiles";
 import { useCohorts, useIcebreakers } from "@/hooks/useCohorts";
 import { useXP } from "@/hooks/useXP";
 import { useMatches } from "@/hooks/useMatches";
@@ -23,7 +23,7 @@ export default function Networking() {
   const navigate = useNavigate();
   const { user, profile: authProfile, loading: authLoading, signOut, updateProfile, deleteAccount, changePassword } = useAuth();
   const currentUserId = user?.id;
-  const { cohorts, userCohorts, createCohort, updateCohort, deleteCohort, fetchAllCohorts } = useCohorts(currentUserId);
+  const { cohorts, userCohorts, createCohort, updateCohort, deleteCohort, fetchAllCohorts, addMemberToCohort, removeMemberFromCohort } = useCohorts(currentUserId);
   const { icebreakers, getRandomIcebreaker } = useIcebreakers();
   const ICEBREAKERS = icebreakers.length > 0 ? icebreakers : DEFAULT_ICEBREAKERS;
 
@@ -43,7 +43,11 @@ export default function Networking() {
   const { profiles: dbProfiles, loading: profilesLoading, recordSwipe, getCompatibility, undoLastSwipe, canUndo } = useProfiles({
     currentUserId, cohortId: selectedCohortId || undefined, excludeSwiped: true,
   });
-  const { matches: dbMatches, startConversation, deleteMatch } = useMatches(currentUserId);
+  const { matches: dbMatches, startConversation, deleteMatch, createManualMatch } = useMatches(currentUserId);
+
+  // All profiles for admin view
+  const { profiles: allSystemDbProfiles, refetch: refetchAllProfiles } = useAllProfiles();
+  const allSystemProfiles = useMemo(() => allSystemDbProfiles.map(convertProfileToLegacy).filter(Boolean), [allSystemDbProfiles]);
   const { awardXP } = useXP(currentUserId);
 
   const me = useMemo(() => authProfile ? convertProfileToLegacy(authProfile) : null, [authProfile]);
@@ -149,19 +153,27 @@ export default function Networking() {
   };
 
   const manualMatch = async (profile) => {
+    if (!createManualMatch) return;
     const ice = await getRandomIcebreaker();
-    if (!localMatches.find(m => m.id === profile.id)) {
-      setLocalMatches(p => [...p, { id: profile.id, type: "cupido", icebreaker: ice, hasConversation: false }]);
+    const result = await createManualMatch(profile.id, ice);
+    if (!result.error && result.matchId) {
+      if (!localMatches.find(m => m.id === profile.id)) {
+        setLocalMatches(p => [...p, { id: profile.id, type: "cupido", icebreaker: ice, hasConversation: false, matchId: result.matchId }]);
+      }
     }
   };
 
   const contactFromLeaderboard = async (profile) => {
     const existing = localMatches.find(m => m.id === profile.id);
     if (existing) { openChat(existing); return; }
+    if (!createManualMatch) return;
     const ice = await getRandomIcebreaker();
-    const newMatch = { id: profile.id, type: "cupido", icebreaker: ice, hasConversation: false };
-    setLocalMatches(p => [...p, newMatch]);
-    openChat(newMatch);
+    const result = await createManualMatch(profile.id, ice);
+    if (!result.error && result.matchId) {
+      const newMatch = { id: profile.id, type: "cupido", icebreaker: ice, hasConversation: false, matchId: result.matchId };
+      setLocalMatches(p => [...p, newMatch]);
+      openChat(newMatch);
+    }
   };
 
   const handlePrivacyChange = async (s) => {
@@ -352,6 +364,11 @@ export default function Networking() {
               return result;
             } : undefined}
             onImportUsers={handleImportUsers}
+            allSystemProfiles={allSystemProfiles}
+            onAddMemberToCohort={addMemberToCohort}
+            onRemoveMemberFromCohort={removeMemberFromCohort}
+            selectedCohortId={selectedCohortId}
+            onRefreshProfiles={refetchAllProfiles}
           />
         )}
         {tab === "admin" && !me?.isAdmin && (

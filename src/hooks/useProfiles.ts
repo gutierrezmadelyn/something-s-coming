@@ -275,3 +275,34 @@ export function useProfile(profileId?: string) {
 
   return { profile, loading, error };
 }
+
+// Hook to get ALL profiles (admin only)
+export function useAllProfiles() {
+  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchAllProfiles = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setProfiles(data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch all profiles'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchAllProfiles();
+  }, [fetchAllProfiles]);
+
+  return { profiles, loading, error, refetch: fetchAllProfiles };
+}

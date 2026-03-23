@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { S } from "./styles";
 import { Avatar, Btn } from "./ui";
 
@@ -13,24 +13,53 @@ export default function AdminPanel({
   onCreateCohort,
   onUpdateCohort,
   onDeleteCohort,
-  onImportUsers
+  onImportUsers,
+  allSystemProfiles = [],
+  onAddMemberToCohort,
+  onRemoveMemberFromCohort,
+  selectedCohortId,
+  onRefreshProfiles,
 }) {
   const [tab, setTab] = useState("alerts");
   const [showCohortModal, setShowCohortModal] = useState(false);
   const [editingCohort, setEditingCohort] = useState(null);
-  const [cohortForm, setCohortForm] = useState({
-    name: "",
-    short_name: "",
-    description: "",
-    color: "#2851A3",
-    icon: "📋",
-  });
+  const [cohortForm, setCohortForm] = useState({ name: "", short_name: "", description: "", color: "#2851A3", icon: "📋" });
   const [savingCohort, setSavingCohort] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importData, setImportData] = useState([]);
   const [importError, setImportError] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [viewMode, setViewMode] = useState("cohort"); // "cohort" | "all"
+  const [filterCountry, setFilterCountry] = useState("");
+  const [assigningCohort, setAssigningCohort] = useState(null); // { profileId, show }
+
+  // Determine which profiles to show
+  const displayProfiles = viewMode === "all" ? allSystemProfiles : allProfiles;
+
+  // Filter and search
+  const filteredProfiles = useMemo(() => {
+    let result = displayProfiles;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(p =>
+        p.name?.toLowerCase().includes(q) ||
+        p.email?.toLowerCase().includes(q) ||
+        p.role?.toLowerCase().includes(q)
+      );
+    }
+    if (filterCountry) {
+      result = result.filter(p => p.country === filterCountry);
+    }
+    return result;
+  }, [displayProfiles, searchQuery, filterCountry]);
+
+  // Get unique countries for filter
+  const countries = useMemo(() => {
+    const set = new Set(displayProfiles.map(p => p.country).filter(Boolean));
+    return Array.from(set).sort();
+  }, [displayProfiles]);
 
   const noLogin = allProfiles.filter(p => !p.hasLoggedIn);
   const noSwipe = allProfiles.filter(p => p.hasLoggedIn && p.swipeCount === 0);
@@ -74,16 +103,12 @@ export default function AdminPanel({
   ));
 
   const exportCSV = () => {
-    const headers = ["Nombre", "Email", "Pais", "Ciudad", "Rol", "XP", "Swipes", "Ha ingresado"];
-    const rows = allProfiles.map(p => [
-      p.name,
-      p.email || "",
-      p.country || "",
-      p.city || "",
-      p.role || "",
-      p.xp || 0,
-      p.swipeCount || 0,
-      p.hasLoggedIn ? "Si" : "No"
+    const headers = ["Nombre", "Email", "Pais", "Ciudad", "Rol", "Expertise", "Ofrece", "Busca", "XP", "Streak", "Liga", "Swipes", "Ha ingresado", "Cohorte"];
+    const rows = (viewMode === "all" ? allSystemProfiles : allProfiles).map(p => [
+      p.name, p.email || "", p.country || "", p.city || "", p.role || "",
+      (p.expertise || []).join("; "), (p.offers || []).join("; "), (p.seeks || []).join("; "),
+      p.xp || 0, p.streak || 0, p.league || "none", p.swipeCount || 0,
+      p.hasLoggedIn ? "Si" : "No", cohortName || ""
     ]);
     const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v}"`).join(","))].join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -96,29 +121,24 @@ export default function AdminPanel({
   const handleFileImport = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
         const text = event.target?.result;
         const lines = text.split("\n").filter(line => line.trim());
         const headers = lines[0].toLowerCase().split(",").map(h => h.trim().replace(/"/g, ""));
-
         const requiredHeaders = ["nombre", "email"];
         const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-
         if (missingHeaders.length > 0) {
           setImportError(`Columnas requeridas faltantes: ${missingHeaders.join(", ")}`);
           return;
         }
-
-        const data = lines.slice(1).map(line => {
+        const data = lines.slice(1).map((line, idx) => {
           const values = line.split(",").map(v => v.trim().replace(/"/g, ""));
-          const row = {};
+          const row = { _row: idx + 2 };
           headers.forEach((h, i) => { row[h] = values[i] || ""; });
           return row;
         }).filter(row => row.nombre && row.email);
-
         setImportData(data);
         setImportError(null);
       } catch (err) {
@@ -128,6 +148,21 @@ export default function AdminPanel({
     reader.readAsText(file);
   };
 
+  const handleAssignCohort = async (profileId, cohortId) => {
+    if (!onAddMemberToCohort) return;
+    const success = await onAddMemberToCohort(cohortId, profileId);
+    if (success) {
+      setAssigningCohort(null);
+      if (onRefreshProfiles) onRefreshProfiles();
+    }
+  };
+
+  const handleRemoveFromCohort = async (profileId) => {
+    if (!onRemoveMemberFromCohort || !selectedCohortId) return;
+    const success = await onRemoveMemberFromCohort(selectedCohortId, profileId);
+    if (success && onRefreshProfiles) onRefreshProfiles();
+  };
+
   return (
     <div style={{ padding: "16px 0" }}>
       <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: S.text, marginBottom: "6px" }}>Panel Admin</h3>
@@ -135,7 +170,7 @@ export default function AdminPanel({
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px", marginBottom: "14px" }}>
         {[
-          { v: allProfiles.length, l: "Perfiles", c: S.blue },
+          { v: viewMode === "all" ? allSystemProfiles.length : allProfiles.length, l: "Perfiles", c: S.blue },
           { v: matches.length, l: "Matches", c: S.green },
           { v: allProfiles.filter(p => p.hasLoggedIn).length, l: "Activos", c: S.purple },
           { v: total, l: "Alertas", c: S.yellow },
@@ -186,22 +221,75 @@ export default function AdminPanel({
 
       {tab === "people" && (
         <div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "12px" }}>
-            <span style={{ fontSize: "13px", color: S.textSec, fontFamily: "'DM Sans', sans-serif", fontWeight: 700 }}>{allProfiles.length} participantes</span>
+          {/* View mode toggle + actions */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "8px" }}>
+            <div style={{ display: "flex", gap: "4px", background: S.cardLight, borderRadius: "10px", padding: "3px" }}>
+              <button onClick={() => setViewMode("cohort")} style={{ padding: "6px 12px", borderRadius: "8px", border: "none", background: viewMode === "cohort" ? S.card : "transparent", color: viewMode === "cohort" ? S.blue : S.textSec, fontSize: "11px", fontWeight: 600, cursor: "pointer", boxShadow: viewMode === "cohort" ? "0 1px 3px rgba(0,0,0,0.1)" : "none" }}>Cohorte</button>
+              <button onClick={() => setViewMode("all")} style={{ padding: "6px 12px", borderRadius: "8px", border: "none", background: viewMode === "all" ? S.card : "transparent", color: viewMode === "all" ? S.blue : S.textSec, fontSize: "11px", fontWeight: 600, cursor: "pointer", boxShadow: viewMode === "all" ? "0 1px 3px rgba(0,0,0,0.1)" : "none" }}>Todos ({allSystemProfiles.length})</button>
+            </div>
             <div style={{ display: "flex", gap: "8px" }}>
               {onImportUsers && <Btn variant="primary" style={{ padding: "8px 14px", fontSize: "12px" }} onClick={() => { setShowImportModal(true); setImportData([]); setImportError(null); setImportSuccess(null); }}>📥 Importar</Btn>}
               <Btn variant="outline" style={{ padding: "8px 14px", fontSize: "12px" }} onClick={exportCSV}>📤 Exportar</Btn>
             </div>
           </div>
-          {allProfiles.map(p => (
+
+          {/* Search and filters */}
+          <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+            <input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Buscar por nombre o email..."
+              style={{ flex: 1, padding: "10px 14px", borderRadius: "10px", border: `1.5px solid ${S.border}`, fontSize: "13px", color: S.text, outline: "none", fontFamily: "'DM Sans', sans-serif" }}
+            />
+            {countries.length > 1 && (
+              <select value={filterCountry} onChange={e => setFilterCountry(e.target.value)} style={{ padding: "10px 12px", borderRadius: "10px", border: `1.5px solid ${S.border}`, fontSize: "12px", color: S.text, background: S.card, cursor: "pointer" }}>
+                <option value="">Todos los paises</option>
+                {countries.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
+          </div>
+
+          <p style={{ fontSize: "11px", color: S.textTer, marginBottom: "8px" }}>{filteredProfiles.length} resultados</p>
+
+          {/* Profile list */}
+          {filteredProfiles.map(p => (
             <div key={p.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 0", borderBottom: `1px solid ${S.border}` }}>
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: p.hasLoggedIn ? S.green : S.border, flexShrink: 0 }}/>
               <Avatar profile={p} size={36}/>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, color: S.text, fontSize: "13px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>{p.name}</p>
-                <p style={{ margin: 0, color: S.textTer, fontSize: "11px", fontFamily: "'DM Sans', sans-serif" }}>{p.role} · {p.swipeCount} swipes · {p.xp || 0} XP</p>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <p style={{ margin: 0, color: S.text, fontSize: "13px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>{p.name}</p>
+                  {p.isAdmin && <span style={{ fontSize: "9px", color: S.purple, background: S.purpleBg, padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>Admin</span>}
+                </div>
+                <p style={{ margin: 0, color: S.textTer, fontSize: "11px", fontFamily: "'DM Sans', sans-serif" }}>
+                  {p.email ? `${p.email} · ` : ""}{p.role || "Sin rol"} · {p.xp || 0} XP
+                </p>
               </div>
-              <button onClick={() => onManualMatch(p)} style={{ padding: "6px 12px", borderRadius: "8px", background: S.blueBg, border: `2px solid ${S.blue}30`, color: S.blue, fontSize: "11px", fontWeight: 700, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>🎯 Conectar</button>
+              <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                {/* Assign to cohort button */}
+                {viewMode === "all" && onAddMemberToCohort && (
+                  <div style={{ position: "relative" }}>
+                    <button onClick={() => setAssigningCohort(assigningCohort === p.id ? null : p.id)} style={{ padding: "5px 10px", borderRadius: "8px", background: S.greenBg, border: `1px solid ${S.green}30`, color: S.green, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>+ Cohorte</button>
+                    {assigningCohort === p.id && (
+                      <div style={{ position: "absolute", right: 0, top: "100%", marginTop: "4px", background: S.card, borderRadius: "12px", border: `1px solid ${S.border}`, boxShadow: "0 4px 12px rgba(0,0,0,0.15)", padding: "8px", zIndex: 50, minWidth: "180px" }}>
+                        {cohorts.map(c => (
+                          <button key={c.id} onClick={() => handleAssignCohort(p.id, c.id)} style={{ display: "block", width: "100%", padding: "8px 12px", borderRadius: "8px", border: "none", background: "transparent", color: S.text, fontSize: "12px", fontWeight: 600, cursor: "pointer", textAlign: "left", fontFamily: "'DM Sans', sans-serif" }}
+                            onMouseEnter={e => e.currentTarget.style.background = S.cardLight}
+                            onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                            {c.icon || "📋"} {c.name}
+                          </button>
+                        ))}
+                        {cohorts.length === 0 && <p style={{ margin: 0, padding: "8px", fontSize: "11px", color: S.textTer }}>No hay cohortes</p>}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Remove from cohort */}
+                {viewMode === "cohort" && onRemoveMemberFromCohort && selectedCohortId && p.id !== currentUserId && (
+                  <button onClick={() => handleRemoveFromCohort(p.id)} title="Quitar de cohorte" style={{ padding: "5px 10px", borderRadius: "8px", background: S.redBg, border: `1px solid ${S.red}30`, color: S.red, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>✕</button>
+                )}
+                <button onClick={() => onManualMatch(p)} style={{ padding: "5px 10px", borderRadius: "8px", background: S.blueBg, border: `1px solid ${S.blue}30`, color: S.blue, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>🎯</button>
+              </div>
             </div>
           ))}
         </div>
@@ -234,7 +322,7 @@ export default function AdminPanel({
                   setShowCohortModal(true);
                 }} style={{ padding: "6px 12px", borderRadius: "8px", background: S.cardLight, border: `1px solid ${S.border}`, color: S.textSec, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>✏️</button>
                 {onDeleteCohort && <button onClick={async () => {
-                  if (confirm(`Eliminar la cohorte "${c.name}"? Esta accion no se puede deshacer.`)) {
+                  if (confirm(`Eliminar la cohorte "${c.name}"? Se removeran ${c.memberCount || 0} miembros. Esta accion no se puede deshacer.`)) {
                     await onDeleteCohort(c.id);
                   }
                 }} style={{ padding: "6px 12px", borderRadius: "8px", background: S.redBg, border: `1px solid ${S.red}30`, color: S.red, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>🗑️</button>}
@@ -251,22 +339,18 @@ export default function AdminPanel({
             <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: S.text, margin: "0 0 20px" }}>
               {editingCohort ? "Editar cohorte" : "Nueva cohorte"}
             </h3>
-
             <div style={{ marginBottom: "16px" }}>
               <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: S.textSec, marginBottom: "6px", textTransform: "uppercase" }}>Nombre</label>
               <input value={cohortForm.name} onChange={e => setCohortForm(prev => ({ ...prev, name: e.target.value }))} placeholder="Ej: Cohorte Guatemala 2026" style={{ width: "100%", padding: "12px 16px", borderRadius: "12px", border: `1.5px solid ${S.border}`, fontSize: "14px", color: S.text, outline: "none", boxSizing: "border-box" }} />
             </div>
-
             <div style={{ marginBottom: "16px" }}>
               <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: S.textSec, marginBottom: "6px", textTransform: "uppercase" }}>Nombre corto</label>
               <input value={cohortForm.short_name} onChange={e => setCohortForm(prev => ({ ...prev, short_name: e.target.value }))} placeholder="Ej: GT-2026" style={{ width: "100%", padding: "12px 16px", borderRadius: "12px", border: `1.5px solid ${S.border}`, fontSize: "14px", color: S.text, outline: "none", boxSizing: "border-box" }} />
             </div>
-
             <div style={{ marginBottom: "16px" }}>
               <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: S.textSec, marginBottom: "6px", textTransform: "uppercase" }}>Descripcion</label>
               <textarea value={cohortForm.description} onChange={e => setCohortForm(prev => ({ ...prev, description: e.target.value }))} placeholder="Descripcion de la cohorte..." rows={3} style={{ width: "100%", padding: "12px 16px", borderRadius: "12px", border: `1.5px solid ${S.border}`, fontSize: "14px", color: S.text, outline: "none", resize: "vertical", boxSizing: "border-box" }} />
             </div>
-
             <div style={{ marginBottom: "16px" }}>
               <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: S.textSec, marginBottom: "6px", textTransform: "uppercase" }}>Icono</label>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -275,7 +359,6 @@ export default function AdminPanel({
                 ))}
               </div>
             </div>
-
             <div style={{ marginBottom: "16px" }}>
               <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: S.textSec, marginBottom: "6px", textTransform: "uppercase" }}>Color</label>
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
@@ -284,7 +367,6 @@ export default function AdminPanel({
                 ))}
               </div>
             </div>
-
             {editingCohort && onUpdateCohort && (
               <div style={{ marginBottom: "16px" }}>
                 <label style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer" }}>
@@ -295,7 +377,6 @@ export default function AdminPanel({
                 </label>
               </div>
             )}
-
             <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
               <button onClick={() => setShowCohortModal(false)} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: `1.5px solid ${S.border}`, background: S.card, color: S.textSec, fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>Cancelar</button>
               <button disabled={savingCohort || !cohortForm.name.trim()} onClick={async () => {
@@ -315,24 +396,20 @@ export default function AdminPanel({
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)", padding: "20px" }}>
           <div style={{ background: S.card, borderRadius: "20px", padding: "24px", width: "100%", maxWidth: "500px", maxHeight: "90vh", overflow: "auto" }}>
             <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: S.text, margin: "0 0 20px" }}>Importar usuarios desde CSV</h3>
-
             {importSuccess !== null && (
               <div style={{ background: S.greenBg, border: `1px solid ${S.green}30`, borderRadius: "12px", padding: "12px 16px", marginBottom: "16px" }}>
                 <p style={{ margin: 0, color: S.green, fontSize: "13px", fontWeight: 500 }}>{importSuccess} usuarios importados correctamente</p>
               </div>
             )}
-
             {importError && (
               <div style={{ background: S.redBg, border: `1px solid ${S.red}30`, borderRadius: "12px", padding: "12px 16px", marginBottom: "16px" }}>
                 <p style={{ margin: 0, color: S.red, fontSize: "13px", fontWeight: 500 }}>{importError}</p>
               </div>
             )}
-
             <div style={{ marginBottom: "16px" }}>
-              <p style={{ fontSize: "12px", color: S.textSec, marginBottom: "8px" }}>El archivo CSV debe tener las siguientes columnas: <strong>nombre, email, pais, ciudad, rol</strong></p>
+              <p style={{ fontSize: "12px", color: S.textSec, marginBottom: "8px" }}>El archivo CSV debe tener las siguientes columnas: <strong>nombre, email</strong> (opcionales: pais, ciudad, rol)</p>
               <input type="file" accept=".csv" onChange={handleFileImport} style={{ width: "100%", padding: "12px", borderRadius: "12px", border: `1.5px solid ${S.border}`, fontSize: "14px" }} />
             </div>
-
             {importData.length > 0 && (
               <div style={{ marginBottom: "16px" }}>
                 <p style={{ fontSize: "13px", color: S.text, fontWeight: 600, marginBottom: "8px" }}>Vista previa: {importData.length} usuarios</p>
@@ -347,7 +424,6 @@ export default function AdminPanel({
                 </div>
               </div>
             )}
-
             <div style={{ display: "flex", gap: "12px" }}>
               <button onClick={() => setShowImportModal(false)} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: `1.5px solid ${S.border}`, background: S.card, color: S.textSec, fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>Cancelar</button>
               <button disabled={importing || importData.length === 0} onClick={async () => {
@@ -356,7 +432,7 @@ export default function AdminPanel({
                 try {
                   const result = await onImportUsers(importData);
                   if (result.error) { setImportError(result.error.message); }
-                  else { setImportSuccess(result.count); setImportData([]); }
+                  else { setImportSuccess(result.count); setImportData([]); if (onRefreshProfiles) onRefreshProfiles(); }
                 } catch (err) { setImportError("Error al importar usuarios"); }
                 setImporting(false);
               }} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "none", background: importing || importData.length === 0 ? S.textTer : S.blue, color: "#fff", fontSize: "14px", fontWeight: 600, cursor: importing || importData.length === 0 ? "not-allowed" : "pointer" }}>{importing ? "Importando..." : `Importar ${importData.length} usuarios`}</button>

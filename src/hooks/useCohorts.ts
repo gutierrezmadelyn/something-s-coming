@@ -230,6 +230,46 @@ export function useCohorts(userId?: string) {
     }));
   };
 
+  // Add a member to a cohort (admin)
+  const addMemberToCohort = async (cohortId: string, profileId: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('cohort_members')
+      .upsert({ cohort_id: cohortId, profile_id: profileId }, { onConflict: 'cohort_id,profile_id' });
+
+    if (error) {
+      console.error('Error adding member to cohort:', error);
+      return false;
+    }
+
+    setCohorts(prev =>
+      prev.map(c =>
+        c.id === cohortId ? { ...c, memberCount: c.memberCount + 1 } : c
+      )
+    );
+    return true;
+  };
+
+  // Remove a member from a cohort (admin)
+  const removeMemberFromCohort = async (cohortId: string, profileId: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('cohort_members')
+      .delete()
+      .eq('cohort_id', cohortId)
+      .eq('profile_id', profileId);
+
+    if (error) {
+      console.error('Error removing member from cohort:', error);
+      return false;
+    }
+
+    setCohorts(prev =>
+      prev.map(c =>
+        c.id === cohortId ? { ...c, memberCount: Math.max(0, c.memberCount - 1) } : c
+      )
+    );
+    return true;
+  };
+
   return {
     cohorts,
     userCohorts,
@@ -241,6 +281,8 @@ export function useCohorts(userId?: string) {
     updateCohort,
     deleteCohort,
     fetchAllCohorts,
+    addMemberToCohort,
+    removeMemberFromCohort,
     refetch: fetchCohorts,
   };
 }

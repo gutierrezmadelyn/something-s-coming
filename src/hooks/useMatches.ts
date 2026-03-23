@@ -146,12 +146,47 @@ export function useMatches(userId?: string) {
     }
   };
 
+  // Create a manual match (admin/leaderboard contact)
+  const createManualMatch = async (matchedUserId: string, icebreaker?: string): Promise<{ matchId?: string; error?: Error }> => {
+    if (!userId) return { error: new Error('Not authenticated') };
+
+    // Check if match already exists
+    const { data: existing } = await supabase
+      .from('matches')
+      .select('id')
+      .or(`and(user_id.eq.${userId},matched_user_id.eq.${matchedUserId}),and(user_id.eq.${matchedUserId},matched_user_id.eq.${userId})`)
+      .maybeSingle();
+
+    if (existing) {
+      return { matchId: existing.id };
+    }
+
+    const { data: match, error } = await supabase
+      .from('matches')
+      .insert({
+        user_id: userId,
+        matched_user_id: matchedUserId,
+        match_type: 'cupido',
+        icebreaker: icebreaker || null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return { error: new Error(error.message) };
+    }
+
+    await fetchMatches();
+    return { matchId: match?.id };
+  };
+
   return {
     matches,
     loading,
     error,
     startConversation,
     deleteMatch,
+    createManualMatch,
     refetch: fetchMatches,
   };
 }
@@ -203,7 +238,15 @@ export function useConversation(conversationId?: string, userId?: string) {
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          setMessages(prev => [...prev, payload.new as Message]);
+          const newMessage = payload.new as Message;
+          // Avoid duplicates (from optimistic updates or multiple subscriptions)
+          setMessages(prev => {
+            const exists = prev.some(m => m.id === newMessage.id);
+            if (exists) return prev;
+            // Also remove any temp messages that match the content
+            const withoutTemp = prev.filter(m => !m.id.startsWith('temp-') || m.content !== newMessage.content);
+            return [...withoutTemp, newMessage];
+          });
         }
       )
       .subscribe();
@@ -215,7 +258,10 @@ export function useConversation(conversationId?: string, userId?: string) {
 
   // Send a message
   const sendMessage = async (content: string): Promise<Message | null> => {
-    if (!conversationId || !userId) return null;
+    if (!conversationId || !userId) {
+      console.error('Cannot send message: missing conversationId or userId', { conversationId, userId });
+      return null;
+    }
 
     const messageData: MessageInsert = {
       conversation_id: conversationId,
@@ -223,6 +269,17 @@ export function useConversation(conversationId?: string, userId?: string) {
       content,
       message_type: 'user',
     };
+
+    // Optimistically add the message to local state
+    const optimisticMessage: Message = {
+      id: `temp-${Date.now()}`,
+      conversation_id: conversationId,
+      sender_id: userId,
+      content,
+      message_type: 'user',
+      created_at: new Date().toISOString(),
+    };
+    setMessages(prev => [...prev, optimisticMessage]);
 
     const { data, error } = await supabase
       .from('messages')
@@ -232,8 +289,13 @@ export function useConversation(conversationId?: string, userId?: string) {
 
     if (error) {
       console.error('Error sending message:', error);
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
       return null;
     }
+
+    // Replace optimistic message with real one
+    setMessages(prev => prev.map(m => m.id === optimisticMessage.id ? data : m));
 
     return data;
   };
