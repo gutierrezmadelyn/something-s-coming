@@ -138,6 +138,107 @@ export function useAuth() {
     return { data, error };
   };
 
+  const deleteAccount = async () => {
+    if (!state.user) return { error: new Error('Not authenticated') };
+
+    setState(prev => ({ ...prev, loading: true, error: null }));
+
+    try {
+      // First, delete all user data using our RPC function
+      const { error: dataError } = await supabase.rpc('delete_user_data', {
+        user_id_to_delete: state.user.id
+      });
+
+      if (dataError) {
+        // If RPC doesn't exist yet, delete manually
+        // Delete messages
+        await supabase.from('messages').delete().eq('sender_id', state.user.id);
+
+        // Delete conversations for user's matches
+        const { data: userMatches } = await supabase
+          .from('matches')
+          .select('id')
+          .or(`user_id.eq.${state.user.id},matched_user_id.eq.${state.user.id}`);
+
+        if (userMatches && userMatches.length > 0) {
+          await supabase
+            .from('conversations')
+            .delete()
+            .in('match_id', userMatches.map(m => m.id));
+        }
+
+        // Delete matches
+        await supabase
+          .from('matches')
+          .delete()
+          .or(`user_id.eq.${state.user.id},matched_user_id.eq.${state.user.id}`);
+
+        // Delete swipes
+        await supabase
+          .from('swipes')
+          .delete()
+          .or(`user_id.eq.${state.user.id},swiped_user_id.eq.${state.user.id}`);
+
+        // Delete cohort memberships
+        await supabase
+          .from('cohort_members')
+          .delete()
+          .eq('profile_id', state.user.id);
+
+        // Delete XP log
+        await supabase
+          .from('xp_log')
+          .delete()
+          .eq('user_id', state.user.id);
+
+        // Delete profile
+        await supabase
+          .from('profiles')
+          .delete()
+          .eq('id', state.user.id);
+      }
+
+      // Sign out the user (this effectively deletes the session)
+      const { error: signOutError } = await supabase.auth.signOut();
+
+      if (signOutError) {
+        setState(prev => ({ ...prev, loading: false, error: signOutError }));
+        return { error: signOutError };
+      }
+
+      setState({ user: null, session: null, profile: null, loading: false, error: null });
+      return { error: null };
+    } catch (err) {
+      const error = err as Error;
+      setState(prev => ({ ...prev, loading: false, error: error as any }));
+      return { error };
+    }
+  };
+
+  const changePassword = async (newPassword: string) => {
+    if (!state.user) return { error: new Error('Not authenticated') };
+
+    setState(prev => ({ ...prev, loading: true, error: null }));
+
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    setState(prev => ({ ...prev, loading: false, error }));
+    return { error };
+  };
+
+  const resetPassword = async (email: string) => {
+    setState(prev => ({ ...prev, loading: true, error: null }));
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth?reset=true`,
+    });
+
+    setState(prev => ({ ...prev, loading: false, error }));
+    return { error };
+  };
+
   return {
     ...state,
     signUp,
@@ -145,5 +246,8 @@ export function useAuth() {
     signInWithGoogle,
     signOut,
     updateProfile,
+    deleteAccount,
+    changePassword,
+    resetPassword,
   };
 }

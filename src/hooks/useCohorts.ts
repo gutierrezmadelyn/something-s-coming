@@ -113,6 +113,123 @@ export function useCohorts(userId?: string) {
     return true;
   };
 
+  // Create a new cohort (admin only)
+  const createCohort = async (cohortData: {
+    name: string;
+    short_name?: string;
+    description?: string;
+    color?: string;
+    icon?: string;
+  }): Promise<{ data: Cohort | null; error: Error | null }> => {
+    const { data, error } = await supabase
+      .from('cohorts')
+      .insert({
+        ...cohortData,
+        id: crypto.randomUUID(),
+        is_active: true,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: new Error(error.message) };
+    }
+
+    // Add to local state
+    setCohorts(prev => [{
+      ...data,
+      memberCount: 0,
+    }, ...prev]);
+
+    return { data, error: null };
+  };
+
+  // Update a cohort (admin only)
+  const updateCohort = async (
+    cohortId: string,
+    updates: Partial<{
+      name: string;
+      short_name: string;
+      description: string;
+      color: string;
+      icon: string;
+      is_active: boolean;
+    }>
+  ): Promise<{ data: Cohort | null; error: Error | null }> => {
+    const { data, error } = await supabase
+      .from('cohorts')
+      .update(updates)
+      .eq('id', cohortId)
+      .select()
+      .single();
+
+    if (error) {
+      return { data: null, error: new Error(error.message) };
+    }
+
+    // Update local state
+    setCohorts(prev =>
+      prev.map(c =>
+        c.id === cohortId ? { ...c, ...data } : c
+      )
+    );
+
+    return { data, error: null };
+  };
+
+  // Delete a cohort (admin only)
+  const deleteCohort = async (cohortId: string): Promise<{ error: Error | null }> => {
+    // First delete all memberships
+    await supabase
+      .from('cohort_members')
+      .delete()
+      .eq('cohort_id', cohortId);
+
+    // Then delete the cohort
+    const { error } = await supabase
+      .from('cohorts')
+      .delete()
+      .eq('id', cohortId);
+
+    if (error) {
+      return { error: new Error(error.message) };
+    }
+
+    // Remove from local state
+    setCohorts(prev => prev.filter(c => c.id !== cohortId));
+
+    return { error: null };
+  };
+
+  // Fetch all cohorts (including inactive) for admin
+  const fetchAllCohorts = async (): Promise<CohortWithMembers[]> => {
+    const { data: cohortsData, error: cohortsError } = await supabase
+      .from('cohorts')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (cohortsError) {
+      console.error('Error fetching all cohorts:', cohortsError);
+      return [];
+    }
+
+    // Get member counts for each cohort
+    const { data: memberCounts } = await supabase
+      .from('cohort_members')
+      .select('cohort_id');
+
+    // Count members per cohort
+    const counts: Record<string, number> = {};
+    memberCounts?.forEach(m => {
+      counts[m.cohort_id] = (counts[m.cohort_id] || 0) + 1;
+    });
+
+    return (cohortsData || []).map(c => ({
+      ...c,
+      memberCount: counts[c.id] || 0,
+    }));
+  };
+
   return {
     cohorts,
     userCohorts,
@@ -120,6 +237,10 @@ export function useCohorts(userId?: string) {
     error,
     joinCohort,
     leaveCohort,
+    createCohort,
+    updateCohort,
+    deleteCohort,
+    fetchAllCohorts,
     refetch: fetchCohorts,
   };
 }

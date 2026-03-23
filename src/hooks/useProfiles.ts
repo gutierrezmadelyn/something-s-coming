@@ -3,6 +3,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Profile, Swipe, SwipeInsert } from '@/lib/database.types';
 
+interface SwipeRecord {
+  id: string;
+  swipedUserId: string;
+  direction: 'left' | 'right';
+}
+
 interface UseProfilesOptions {
   currentUserId?: string;
   cohortId?: string;
@@ -13,6 +19,7 @@ export function useProfiles(options: UseProfilesOptions = {}) {
   const { currentUserId, cohortId, excludeSwiped = true } = options;
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [swipedIds, setSwipedIds] = useState<Set<string>>(new Set());
+  const [lastSwipe, setLastSwipe] = useState<SwipeRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -96,11 +103,24 @@ export function useProfiles(options: UseProfilesOptions = {}) {
       direction,
     };
 
-    const { error: swipeError } = await supabase.from('swipes').insert(swipeData);
+    const { data: insertedSwipe, error: swipeError } = await supabase
+      .from('swipes')
+      .insert(swipeData)
+      .select()
+      .single();
 
     if (swipeError) {
       console.error('Error recording swipe:', swipeError);
       return { isMatch: false };
+    }
+
+    // Track last swipe for undo functionality
+    if (insertedSwipe) {
+      setLastSwipe({
+        id: insertedSwipe.id,
+        swipedUserId,
+        direction,
+      });
     }
 
     // Update local state
@@ -160,12 +180,64 @@ export function useProfiles(options: UseProfilesOptions = {}) {
     return data || 0;
   };
 
+  // Undo the last swipe
+  const undoLastSwipe = async (): Promise<{ success: boolean; undoneProfile?: Profile }> => {
+    if (!lastSwipe || !currentUserId) return { success: false };
+
+    try {
+      // Delete the swipe from database
+      const { error: deleteError } = await supabase
+        .from('swipes')
+        .delete()
+        .eq('id', lastSwipe.id);
+
+      if (deleteError) {
+        console.error('Error undoing swipe:', deleteError);
+        return { success: false };
+      }
+
+      // Fetch the profile that was swiped
+      const { data: undoneProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', lastSwipe.swipedUserId)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching undone profile:', profileError);
+        return { success: false };
+      }
+
+      // Update local state
+      setSwipedIds(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(lastSwipe.swipedUserId);
+        return newSet;
+      });
+
+      // Add the profile back to the list (at the beginning)
+      if (undoneProfile) {
+        setProfiles(prev => [undoneProfile, ...prev]);
+      }
+
+      // Clear last swipe
+      setLastSwipe(null);
+
+      return { success: true, undoneProfile };
+    } catch (err) {
+      console.error('Error in undoLastSwipe:', err);
+      return { success: false };
+    }
+  };
+
   return {
     profiles,
     loading,
     error,
     recordSwipe,
     getCompatibility,
+    undoLastSwipe,
+    canUndo: !!lastSwipe,
     refetch: fetchProfiles,
   };
 }

@@ -107,11 +107,51 @@ export function useMatches(userId?: string) {
     return data;
   };
 
+  // Delete a match (unmatch)
+  const deleteMatch = async (matchId: string): Promise<{ error: Error | null }> => {
+    try {
+      // First, get the match to find associated conversation
+      const matchToDelete = matches.find(m => m.id === matchId);
+
+      if (matchToDelete?.conversation) {
+        // Delete messages in the conversation
+        await supabase
+          .from('messages')
+          .delete()
+          .eq('conversation_id', matchToDelete.conversation.id);
+
+        // Delete the conversation
+        await supabase
+          .from('conversations')
+          .delete()
+          .eq('id', matchToDelete.conversation.id);
+      }
+
+      // Delete the match
+      const { error } = await supabase
+        .from('matches')
+        .delete()
+        .eq('id', matchId);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      // Update local state
+      setMatches(prev => prev.filter(m => m.id !== matchId));
+
+      return { error: null };
+    } catch (err) {
+      return { error: err instanceof Error ? err : new Error('Failed to delete match') };
+    }
+  };
+
   return {
     matches,
     loading,
     error,
     startConversation,
+    deleteMatch,
     refetch: fetchMatches,
   };
 }

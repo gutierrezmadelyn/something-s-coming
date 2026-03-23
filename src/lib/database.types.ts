@@ -42,6 +42,7 @@ export interface Database {
           show_phone: boolean
           last_active: string | null
           has_logged_in: boolean
+          is_admin: boolean
           created_at: string
           updated_at: string
         }
@@ -77,6 +78,7 @@ export interface Database {
           show_phone?: boolean
           last_active?: string | null
           has_logged_in?: boolean
+          is_admin?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -112,6 +114,7 @@ export interface Database {
           show_phone?: boolean
           last_active?: string | null
           has_logged_in?: boolean
+          is_admin?: boolean
           created_at?: string
           updated_at?: string
         }

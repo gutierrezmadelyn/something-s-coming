@@ -83,9 +83,20 @@ interface ProfileFormProps {
   onSave: (updates: Partial<Profile>) => Promise<void>;
   onCancel?: () => void;
   isOnboarding?: boolean;
+  onDeleteAccount?: () => Promise<{ error: Error | null }>;
+  onChangePassword?: (newPassword: string) => Promise<{ error: Error | null }>;
 }
 
-export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = false }: ProfileFormProps) {
+export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = false, onDeleteAccount, onChangePassword }: ProfileFormProps) {
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+
   const [formData, setFormData] = useState({
     name: "",
     country: "",
@@ -584,6 +595,272 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
           {saving ? "Guardando..." : "Guardar perfil"}
         </button>
       </div>
+
+      {/* Change Password Section */}
+      {!isOnboarding && onChangePassword && (
+        <div style={{
+          marginTop: "24px",
+          padding: "16px",
+          background: S.cardLight,
+          borderRadius: "16px",
+          border: `1px solid ${S.border}`
+        }}>
+          <button
+            type="button"
+            onClick={() => {
+              setShowChangePassword(!showChangePassword);
+              setPasswordError(null);
+              setPasswordSuccess(false);
+              setNewPassword("");
+              setConfirmPassword("");
+            }}
+            style={{
+              width: "100%",
+              padding: "12px",
+              borderRadius: "12px",
+              border: "none",
+              background: "transparent",
+              color: S.blue,
+              fontSize: "14px",
+              fontWeight: 600,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px"
+            }}
+          >
+            🔑 {showChangePassword ? "Ocultar" : "Cambiar contrasena"}
+          </button>
+
+          {showChangePassword && (
+            <div style={{ marginTop: "16px" }}>
+              {passwordSuccess && (
+                <div style={{
+                  background: S.greenBg,
+                  border: `1px solid ${S.green}30`,
+                  borderRadius: "12px",
+                  padding: "12px 16px",
+                  marginBottom: "16px"
+                }}>
+                  <p style={{ margin: 0, color: S.green, fontSize: "13px", fontWeight: 500 }}>
+                    Contrasena actualizada correctamente
+                  </p>
+                </div>
+              )}
+
+              {passwordError && (
+                <div style={{
+                  background: S.redBg,
+                  border: `1px solid ${S.red}30`,
+                  borderRadius: "12px",
+                  padding: "12px 16px",
+                  marginBottom: "16px"
+                }}>
+                  <p style={{ margin: 0, color: S.red, fontSize: "13px", fontWeight: 500 }}>
+                    {passwordError}
+                  </p>
+                </div>
+              )}
+
+              <div style={{ marginBottom: "12px" }}>
+                <label style={{
+                  display: "block",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: S.textSec,
+                  marginBottom: "6px"
+                }}>
+                  Nueva contrasena
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimo 8 caracteres"
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px",
+                    borderRadius: "12px",
+                    border: `1.5px solid ${S.border}`,
+                    fontSize: "14px",
+                    color: S.text,
+                    outline: "none",
+                    boxSizing: "border-box"
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: "12px" }}>
+                <label style={{
+                  display: "block",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: S.textSec,
+                  marginBottom: "6px"
+                }}>
+                  Confirmar contrasena
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Repite la contrasena"
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px",
+                    borderRadius: "12px",
+                    border: `1.5px solid ${S.border}`,
+                    fontSize: "14px",
+                    color: S.text,
+                    outline: "none",
+                    boxSizing: "border-box"
+                  }}
+                />
+              </div>
+
+              <button
+                type="button"
+                disabled={changingPassword}
+                onClick={async () => {
+                  setPasswordError(null);
+                  setPasswordSuccess(false);
+
+                  if (newPassword.length < 8) {
+                    setPasswordError("La contrasena debe tener al menos 8 caracteres");
+                    return;
+                  }
+
+                  if (newPassword !== confirmPassword) {
+                    setPasswordError("Las contrasenas no coinciden");
+                    return;
+                  }
+
+                  setChangingPassword(true);
+                  const { error } = await onChangePassword(newPassword);
+                  setChangingPassword(false);
+
+                  if (error) {
+                    setPasswordError(error.message || "Error al cambiar la contrasena");
+                  } else {
+                    setPasswordSuccess(true);
+                    setNewPassword("");
+                    setConfirmPassword("");
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: "12px",
+                  border: "none",
+                  background: changingPassword ? S.textTer : S.blue,
+                  color: "#fff",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  cursor: changingPassword ? "not-allowed" : "pointer"
+                }}
+              >
+                {changingPassword ? "Actualizando..." : "Actualizar contrasena"}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Delete Account Section */}
+      {!isOnboarding && onDeleteAccount && (
+        <div style={{
+          marginTop: "24px",
+          padding: "16px",
+          background: S.redBg,
+          borderRadius: "16px",
+          border: `1px solid ${S.red}30`
+        }}>
+          {!showDeleteConfirm ? (
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: "12px",
+                border: "none",
+                background: "transparent",
+                color: S.red,
+                fontSize: "14px",
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px"
+              }}
+            >
+              ⚠️ Eliminar mi cuenta
+            </button>
+          ) : (
+            <div>
+              <p style={{
+                margin: "0 0 12px",
+                color: S.red,
+                fontSize: "14px",
+                fontWeight: 600,
+                textAlign: "center"
+              }}>
+                ¿Estas seguro de que quieres eliminar tu cuenta?
+              </p>
+              <p style={{
+                margin: "0 0 16px",
+                color: S.text,
+                fontSize: "12px",
+                textAlign: "center"
+              }}>
+                Esta accion no se puede deshacer. Todos tus datos, matches y conversaciones seran eliminados permanentemente.
+              </p>
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button
+                  type="button"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    borderRadius: "12px",
+                    border: `1.5px solid ${S.border}`,
+                    background: S.card,
+                    color: S.textSec,
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    cursor: "pointer"
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={async () => {
+                    setDeleting(true);
+                    await onDeleteAccount();
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    borderRadius: "12px",
+                    border: "none",
+                    background: deleting ? S.textTer : S.red,
+                    color: "#fff",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    cursor: deleting ? "not-allowed" : "pointer"
+                  }}
+                >
+                  {deleting ? "Eliminando..." : "Eliminar"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </form>
   );
 }
