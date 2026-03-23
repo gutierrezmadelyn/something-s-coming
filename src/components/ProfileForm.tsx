@@ -48,15 +48,6 @@ const COUNTRY_CODES: Record<string, string> = {
   "Republica Dominicana": "+1",
 };
 
-const SECTOR_OPTIONS = [
-  "PyMEs",
-  "Corporativos",
-  "OSC",
-  "Sector publico",
-  "Educacion",
-  "Cooperacion internacional",
-];
-
 const OFFERS_OPTIONS = [
   "Metodologias probadas",
   "Experiencia sectorial",
@@ -284,7 +275,6 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
     pitch: "",
     expertise: [] as string[],
     wants_to_learn: "",
-    sectors: [] as string[],
     offers: [] as string[],
     seeks: [] as string[],
     whatsapp: "",
@@ -311,7 +301,6 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         pitch: profile.pitch || "",
         expertise: profile.expertise || [],
         wants_to_learn: profile.wants_to_learn || "",
-        sectors: profile.sectors || [],
         offers: profile.offers || [],
         seeks: profile.seeks || [],
         whatsapp: profile.whatsapp || "",
@@ -323,7 +312,7 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
     }
   }, [profile]);
 
-  const handleToggleArray = (field: "expertise" | "sectors" | "offers" | "seeks", value: string) => {
+  const handleToggleArray = (field: "expertise" | "offers" | "seeks", value: string) => {
     setFormData(prev => {
       const current = prev[field];
       if (current.includes(value)) {
@@ -366,11 +355,6 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
 
     if (formData.expertise.length === 0) {
       setError("Selecciona al menos una expertise");
-      return;
-    }
-
-    if (formData.sectors.length === 0) {
-      setError("Selecciona al menos un sector");
       return;
     }
 
@@ -530,13 +514,6 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         value={formData.wants_to_learn}
         onChange={(v) => setFormData(prev => ({ ...prev, wants_to_learn: v }))}
         options={EXPERTISE_OPTIONS}
-      />
-
-      <MultiSelect
-        label="Sectores donde trabajo"
-        options={SECTOR_OPTIONS}
-        selected={formData.sectors}
-        onChange={(v) => handleToggleArray("sectors", v)}
       />
 
       <MultiSelect
