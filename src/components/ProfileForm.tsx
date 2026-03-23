@@ -78,6 +78,156 @@ const AVATAR_COLORS = [
   "#58CC02", "#1CB0F6", "#CE82FF", "#FF4B4B", "#FFC800", "#AFAFAF", "#2851A3"
 ];
 
+// Input component - defined outside to prevent re-creation on each render
+const Input = ({ label, value, onChange, placeholder, type = "text", multiline = false }: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+  multiline?: boolean;
+}) => (
+  <div style={{ marginBottom: "16px" }}>
+    <label style={{
+      display: "block",
+      fontSize: "12px",
+      fontWeight: 600,
+      color: S.textSec,
+      marginBottom: "6px",
+      textTransform: "uppercase",
+      letterSpacing: "0.05em"
+    }}>
+      {label}
+    </label>
+    {multiline ? (
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={3}
+        style={{
+          width: "100%",
+          padding: "12px 16px",
+          borderRadius: "12px",
+          border: `1.5px solid ${S.border}`,
+          fontSize: "14px",
+          color: S.text,
+          outline: "none",
+          resize: "vertical",
+          fontFamily: "'DM Sans', sans-serif",
+          boxSizing: "border-box"
+        }}
+      />
+    ) : (
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: "100%",
+          padding: "12px 16px",
+          borderRadius: "12px",
+          border: `1.5px solid ${S.border}`,
+          fontSize: "14px",
+          color: S.text,
+          outline: "none",
+          boxSizing: "border-box"
+        }}
+      />
+    )}
+  </div>
+);
+
+// Select component - defined outside to prevent re-creation on each render
+const Select = ({ label, value, onChange, options }: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[] | string[];
+}) => (
+  <div style={{ marginBottom: "16px" }}>
+    <label style={{
+      display: "block",
+      fontSize: "12px",
+      fontWeight: 600,
+      color: S.textSec,
+      marginBottom: "6px",
+      textTransform: "uppercase",
+      letterSpacing: "0.05em"
+    }}>
+      {label}
+    </label>
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      style={{
+        width: "100%",
+        padding: "12px 16px",
+        borderRadius: "12px",
+        border: `1.5px solid ${S.border}`,
+        fontSize: "14px",
+        color: S.text,
+        outline: "none",
+        background: S.card,
+        cursor: "pointer",
+        boxSizing: "border-box"
+      }}
+    >
+      <option value="">Seleccionar...</option>
+      {options.map(opt => {
+        const val = typeof opt === "string" ? opt : opt.value;
+        const lab = typeof opt === "string" ? opt : opt.label;
+        return <option key={val} value={val}>{lab}</option>;
+      })}
+    </select>
+  </div>
+);
+
+// MultiSelect component - defined outside to prevent re-creation on each render
+const MultiSelect = ({ label, options, selected, onChange }: {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (value: string) => void;
+}) => (
+  <div style={{ marginBottom: "20px" }}>
+    <label style={{
+      display: "block",
+      fontSize: "12px",
+      fontWeight: 600,
+      color: S.textSec,
+      marginBottom: "8px",
+      textTransform: "uppercase",
+      letterSpacing: "0.05em"
+    }}>
+      {label}
+    </label>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+      {options.map(option => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => onChange(option)}
+          style={{
+            padding: "8px 14px",
+            borderRadius: "10px",
+            border: `1.5px solid ${selected.includes(option) ? S.blue : S.border}`,
+            background: selected.includes(option) ? S.blueBg : S.card,
+            color: selected.includes(option) ? S.blue : S.textSec,
+            fontSize: "12px",
+            fontWeight: 600,
+            cursor: "pointer",
+            transition: "all 0.2s"
+          }}
+        >
+          {option}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
 interface ProfileFormProps {
   profile: Profile | null;
   onSave: (updates: Partial<Profile>) => Promise<void>;
@@ -190,153 +340,6 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
       setSaving(false);
     }
   };
-
-  const MultiSelect = ({ label, options, selected, onChange }: {
-    label: string;
-    options: string[];
-    selected: string[];
-    onChange: (value: string) => void;
-  }) => (
-    <div style={{ marginBottom: "20px" }}>
-      <label style={{
-        display: "block",
-        fontSize: "12px",
-        fontWeight: 600,
-        color: S.textSec,
-        marginBottom: "8px",
-        textTransform: "uppercase",
-        letterSpacing: "0.05em"
-      }}>
-        {label}
-      </label>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-        {options.map(option => (
-          <button
-            key={option}
-            type="button"
-            onClick={() => onChange(option)}
-            style={{
-              padding: "8px 14px",
-              borderRadius: "10px",
-              border: `1.5px solid ${selected.includes(option) ? S.blue : S.border}`,
-              background: selected.includes(option) ? S.blueBg : S.card,
-              color: selected.includes(option) ? S.blue : S.textSec,
-              fontSize: "12px",
-              fontWeight: 600,
-              cursor: "pointer",
-              transition: "all 0.2s"
-            }}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-
-  const Input = ({ label, value, onChange, placeholder, type = "text", multiline = false }: {
-    label: string;
-    value: string;
-    onChange: (value: string) => void;
-    placeholder?: string;
-    type?: string;
-    multiline?: boolean;
-  }) => (
-    <div style={{ marginBottom: "16px" }}>
-      <label style={{
-        display: "block",
-        fontSize: "12px",
-        fontWeight: 600,
-        color: S.textSec,
-        marginBottom: "6px",
-        textTransform: "uppercase",
-        letterSpacing: "0.05em"
-      }}>
-        {label}
-      </label>
-      {multiline ? (
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          rows={3}
-          style={{
-            width: "100%",
-            padding: "12px 16px",
-            borderRadius: "12px",
-            border: `1.5px solid ${S.border}`,
-            fontSize: "14px",
-            color: S.text,
-            outline: "none",
-            resize: "vertical",
-            fontFamily: "'DM Sans', sans-serif",
-            boxSizing: "border-box"
-          }}
-        />
-      ) : (
-        <input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          style={{
-            width: "100%",
-            padding: "12px 16px",
-            borderRadius: "12px",
-            border: `1.5px solid ${S.border}`,
-            fontSize: "14px",
-            color: S.text,
-            outline: "none",
-            boxSizing: "border-box"
-          }}
-        />
-      )}
-    </div>
-  );
-
-  const Select = ({ label, value, onChange, options }: {
-    label: string;
-    value: string;
-    onChange: (value: string) => void;
-    options: { value: string; label: string }[] | string[];
-  }) => (
-    <div style={{ marginBottom: "16px" }}>
-      <label style={{
-        display: "block",
-        fontSize: "12px",
-        fontWeight: 600,
-        color: S.textSec,
-        marginBottom: "6px",
-        textTransform: "uppercase",
-        letterSpacing: "0.05em"
-      }}>
-        {label}
-      </label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: "100%",
-          padding: "12px 16px",
-          borderRadius: "12px",
-          border: `1.5px solid ${S.border}`,
-          fontSize: "14px",
-          color: S.text,
-          outline: "none",
-          background: S.card,
-          cursor: "pointer",
-          boxSizing: "border-box"
-        }}
-      >
-        <option value="">Seleccionar...</option>
-        {options.map(opt => {
-          const val = typeof opt === "string" ? opt : opt.value;
-          const lab = typeof opt === "string" ? opt : opt.label;
-          return <option key={val} value={val}>{lab}</option>;
-        })}
-      </select>
-    </div>
-  );
 
   return (
     <form onSubmit={handleSubmit} style={{ padding: isOnboarding ? "0" : "16px 0" }}>
