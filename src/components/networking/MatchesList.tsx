@@ -23,7 +23,7 @@ export default function MatchesList({ matches, allProfiles, onOpenChat, onUnmatc
     <div style={{ textAlign: "center", padding: "60px 20px" }}>
       <div style={{ fontSize: "56px", marginBottom: "12px" }}>🎯</div>
       <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, fontSize: "20px", color: S.text }}>Aun no tienes matches</h3>
-      <p style={{ fontSize: "14px", color: S.textSec, fontFamily: "'DM Sans', sans-serif" }}>Explora perfiles y conecta con otros catalizadores</p>
+      <p style={{ fontSize: "14px", color: S.textSec, fontFamily: "'DM Sans', sans-serif" }}>Explora perfiles y conecta con personas de tu interes</p>
     </div>
   );
 

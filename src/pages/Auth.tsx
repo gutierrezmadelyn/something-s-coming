@@ -124,7 +124,7 @@ export default function Auth() {
             marginTop: "8px",
             fontWeight: 500
           }}>
-            Conecta con otros catalizadores
+            Conecta con personas de tu interes
           </p>
         </div>
 
