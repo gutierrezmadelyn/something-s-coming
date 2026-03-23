@@ -22,21 +22,95 @@ export function useAuth() {
   });
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session }, error }) => {
-      if (error) {
-        setState(prev => ({ ...prev, loading: false, error }));
-        return;
-      }
+    let mounted = true;
 
-      if (session?.user) {
-        // Fetch profile
-        supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data: profile }) => {
+    // Timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      if (mounted) {
+        console.warn('Auth session check timed out');
+        setState(prev => {
+          if (prev.loading) {
+            return { ...prev, loading: false };
+          }
+          return prev;
+        });
+      }
+    }, 5000);
+
+    // Get initial session
+    supabase.auth.getSession()
+      .then(({ data: { session }, error }) => {
+        if (!mounted) return;
+        clearTimeout(timeout);
+
+        if (error) {
+          console.error('getSession error:', error);
+          setState(prev => ({ ...prev, loading: false, error }));
+          return;
+        }
+
+        if (session?.user) {
+          // Fetch profile
+          supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+            .then(({ data: profile, error: profileError }) => {
+              if (!mounted) return;
+              if (profileError) {
+                console.error('Error fetching profile:', profileError);
+              }
+              setState({
+                user: session.user,
+                session,
+                profile: profile || null,
+                loading: false,
+                error: null,
+              });
+            })
+            .catch((err) => {
+              if (!mounted) return;
+              console.error('Profile fetch failed:', err);
+              setState({
+                user: session.user,
+                session,
+                profile: null,
+                loading: false,
+                error: null,
+              });
+            });
+        } else {
+          setState({ user: null, session: null, profile: null, loading: false, error: null });
+        }
+      })
+      .catch((err) => {
+        if (!mounted) return;
+        clearTimeout(timeout);
+        console.error('getSession failed:', err);
+        setState(prev => ({ ...prev, loading: false }));
+      });
+
+    return () => {
+      mounted = false;
+      clearTimeout(timeout);
+    };
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        try {
+          if (session?.user) {
+            const { data: profile, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single();
+
+            if (profileError) {
+              console.error('Error fetching profile on auth change:', profileError);
+            }
+
             setState({
               user: session.user,
               session,
@@ -44,31 +118,12 @@ export function useAuth() {
               loading: false,
               error: null,
             });
-          });
-      } else {
-        setState({ user: null, session: null, profile: null, loading: false, error: null });
-      }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-
-          setState({
-            user: session.user,
-            session,
-            profile: profile || null,
-            loading: false,
-            error: null,
-          });
-        } else {
-          setState({ user: null, session: null, profile: null, loading: false, error: null });
+          } else {
+            setState({ user: null, session: null, profile: null, loading: false, error: null });
+          }
+        } catch (err) {
+          console.error('Auth state change error:', err);
+          setState(prev => ({ ...prev, loading: false }));
         }
       }
     );
@@ -83,18 +138,15 @@ export function useAuth() {
       password,
       options: { data: metadata },
     });
-    if (error) {
-      setState(prev => ({ ...prev, loading: false, error }));
-    }
+    setState(prev => ({ ...prev, loading: false, error: error || null }));
     return { data, error };
   };
 
   const signIn = async (email: string, password: string) => {
     setState(prev => ({ ...prev, loading: true, error: null }));
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setState(prev => ({ ...prev, loading: false, error }));
-    }
+    // Always set loading to false, onAuthStateChange will update the rest
+    setState(prev => ({ ...prev, loading: false, error: error || null }));
     return { data, error };
   };
 

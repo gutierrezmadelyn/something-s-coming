@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfiles } from "@/hooks/useProfiles";
@@ -46,8 +46,8 @@ export default function Networking() {
   const { matches: dbMatches, startConversation, deleteMatch } = useMatches(currentUserId);
   const { awardXP } = useXP(currentUserId);
 
-  const me = authProfile ? convertProfileToLegacy(authProfile) : null;
-  const cohortProfiles = dbProfiles.map(convertProfileToLegacy).filter(Boolean);
+  const me = useMemo(() => authProfile ? convertProfileToLegacy(authProfile) : null, [authProfile]);
+  const cohortProfiles = useMemo(() => dbProfiles.map(convertProfileToLegacy).filter(Boolean), [dbProfiles]);
 
   // Fetch all cohorts for admin
   useEffect(() => {
@@ -60,8 +60,14 @@ export default function Networking() {
     if (cohortProfiles.length > 0) {
       setAllLoadedProfiles(prev => {
         const existing = new Map(prev.map(p => [p.id, p]));
-        cohortProfiles.forEach(p => existing.set(p.id, p));
-        return Array.from(existing.values());
+        let changed = false;
+        cohortProfiles.forEach(p => {
+          if (!existing.has(p.id)) {
+            existing.set(p.id, p);
+            changed = true;
+          }
+        });
+        return changed ? Array.from(existing.values()) : prev;
       });
     }
   }, [cohortProfiles]);
@@ -71,8 +77,14 @@ export default function Networking() {
       const matchedProfiles = dbMatches.filter(m => m.matchedProfile).map(m => convertProfileToLegacy(m.matchedProfile));
       setAllLoadedProfiles(prev => {
         const existing = new Map(prev.map(p => [p.id, p]));
-        matchedProfiles.forEach(p => { if (p) existing.set(p.id, p); });
-        return Array.from(existing.values());
+        let changed = false;
+        matchedProfiles.forEach(p => {
+          if (p && !existing.has(p.id)) {
+            existing.set(p.id, p);
+            changed = true;
+          }
+        });
+        return changed ? Array.from(existing.values()) : prev;
       });
     }
   }, [dbMatches]);
