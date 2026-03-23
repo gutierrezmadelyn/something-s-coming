@@ -235,6 +235,7 @@ export type Database = {
           expertise: string[] | null
           has_logged_in: boolean | null
           id: string
+          is_admin: boolean | null
           last_active: string | null
           lat: number | null
           league: string | null
@@ -270,6 +271,7 @@ export type Database = {
           expertise?: string[] | null
           has_logged_in?: boolean | null
           id: string
+          is_admin?: boolean | null
           last_active?: string | null
           lat?: number | null
           league?: string | null
@@ -305,6 +307,7 @@ export type Database = {
           expertise?: string[] | null
           has_logged_in?: boolean | null
           id?: string
+          is_admin?: boolean | null
           last_active?: string | null
           lat?: number | null
           league?: string | null
@@ -414,6 +417,10 @@ export type Database = {
       calculate_compatibility: {
         Args: { user_a: string; user_b: string }
         Returns: number
+      }
+      delete_user_data: {
+        Args: { user_id_to_delete: string }
+        Returns: undefined
       }
       get_leaderboard: {
         Args: { p_cohort_id?: string }
