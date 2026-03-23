@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Profile } from "@/lib/database.types";
 
 const S = {
@@ -118,9 +118,12 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const initializedRef = useRef(false);
 
   useEffect(() => {
-    if (profile) {
+    // Only initialize form data once when profile is first loaded
+    if (profile && !initializedRef.current) {
+      initializedRef.current = true;
       setFormData({
         name: profile.name || "",
         country: profile.country || "",
