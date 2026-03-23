@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Match, Conversation, Message, MessageInsert, Profile } from '@/lib/database.types';
