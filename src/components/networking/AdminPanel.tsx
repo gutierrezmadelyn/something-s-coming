@@ -124,21 +124,40 @@ export default function AdminPanel({
     const reader = new FileReader();
     reader.onload = (event) => {
       try {
-        const text = event.target?.result;
+        const text = event.target?.result as string;
         const lines = text.split("\n").filter(line => line.trim());
-        const headers = lines[0].toLowerCase().split(",").map(h => h.trim().replace(/"/g, ""));
-        const requiredHeaders = ["nombre", "email"];
-        const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-        if (missingHeaders.length > 0) {
-          setImportError(`Columnas requeridas faltantes: ${missingHeaders.join(", ")}`);
+
+        // Detect delimiter (comma or semicolon)
+        const firstLine = lines[0];
+        const delimiter = firstLine.includes(";") ? ";" : ",";
+
+        const headers = firstLine.toLowerCase().split(delimiter).map(h => h.trim().replace(/"/g, ""));
+
+        // Check for nombre or "nombre completo"
+        const hasNombre = headers.includes("nombre") || headers.includes("nombre completo");
+        const hasEmail = headers.includes("email") || headers.includes("correo") || headers.includes("correo electronico");
+
+        if (!hasNombre || !hasEmail) {
+          const missing = [];
+          if (!hasNombre) missing.push("nombre");
+          if (!hasEmail) missing.push("email");
+          setImportError(`Columnas requeridas faltantes: ${missing.join(", ")}`);
           return;
         }
+
         const data = lines.slice(1).map((line, idx) => {
-          const values = line.split(",").map(v => v.trim().replace(/"/g, ""));
-          const row = { _row: idx + 2 };
+          const values = line.split(delimiter).map(v => v.trim().replace(/"/g, ""));
+          const row: Record<string, any> = { _row: idx + 2 };
           headers.forEach((h, i) => { row[h] = values[i] || ""; });
+
+          // Normalize field names
+          if (!row.nombre && row["nombre completo"]) row.nombre = row["nombre completo"];
+          if (!row.email && row.correo) row.email = row.correo;
+          if (!row.email && row["correo electronico"]) row.email = row["correo electronico"];
+
           return row;
         }).filter(row => row.nombre && row.email);
+
         setImportData(data);
         setImportError(null);
       } catch (err) {
