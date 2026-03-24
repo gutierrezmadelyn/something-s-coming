@@ -219,7 +219,16 @@ export default function Networking() {
       let importedCount = 0;
 
       for (const user of users) {
-        const userId = crypto.randomUUID();
+        const email = (user.email || "").trim().toLowerCase();
+        if (!email) continue;
+
+        // Check if user already exists
+        const { data: existing } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("email", email)
+          .maybeSingle();
+
         const nameParts = (user.nombre || "").trim().split(" ");
         const initials = nameParts.length >= 2
           ? nameParts[0][0] + nameParts[nameParts.length - 1][0]
@@ -232,43 +241,66 @@ export default function Networking() {
           expertiseArray = expertiseRaw.split(/[,;]/).map((e: string) => e.trim()).filter(Boolean);
         }
 
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .upsert({
-            id: userId,
-            name: user.nombre || "",
-            email: user.email || "",
-            country: user.pais || user.country || "",
-            city: user.ciudad || user.city || "",
-            role: user.rol || user.role || user["tipo de organizacion"] || "",
-            work_type: user.work_type || user["tipo de trabajo"] || "",
-            expertise: expertiseArray.length > 0 ? expertiseArray : null,
-            whatsapp: user.whatsapp || "",
-            linkedin: user.linkedin || "",
-            avatar_initials: initials.toUpperCase(),
-            avatar_color: "#2851A3",
-            has_logged_in: false,
-            xp: 0,
-            streak: 0,
-            league: "none",
-            swipe_count: 0,
-            match_count: 0,
-            conversations_started: 0,
-          }, { onConflict: "email" });
+        const profileData = {
+          name: user.nombre || "",
+          email: email,
+          country: user.pais || user.country || "",
+          city: user.ciudad || user.city || "",
+          role: user.rol || user.role || user["tipo de organizacion"] || "",
+          work_type: user.work_type || user["tipo de trabajo"] || "",
+          expertise: expertiseArray.length > 0 ? expertiseArray : null,
+          whatsapp: user.whatsapp || "",
+          linkedin: user.linkedin || "",
+          avatar_initials: initials.toUpperCase(),
+          avatar_color: "#2851A3",
+        };
+
+        let profileId: string;
+        let profileError: any = null;
+
+        if (existing) {
+          // Update existing profile
+          profileId = existing.id;
+          const { error } = await supabase
+            .from("profiles")
+            .update(profileData)
+            .eq("id", existing.id);
+          profileError = error;
+        } else {
+          // Insert new profile
+          profileId = crypto.randomUUID();
+          const { error } = await supabase
+            .from("profiles")
+            .insert({
+              id: profileId,
+              ...profileData,
+              has_logged_in: false,
+              xp: 0,
+              streak: 0,
+              league: "none",
+              swipe_count: 0,
+              match_count: 0,
+              conversations_started: 0,
+            });
+          profileError = error;
+        }
 
         if (!profileError) {
           importedCount++;
           if (selectedCohortId) {
             await supabase.from("cohort_members").upsert({
               cohort_id: selectedCohortId,
-              profile_id: userId,
+              profile_id: profileId,
             }, { onConflict: "cohort_id,profile_id" });
           }
+        } else {
+          console.error("Error importing user:", email, profileError);
         }
       }
 
       return { error: null, count: importedCount };
     } catch (err) {
+      console.error("Import error:", err);
       return { error: err instanceof Error ? err : new Error("Import failed"), count: 0 };
     }
   };
