@@ -101,6 +101,25 @@ export function useAuth() {
       async (event, session) => {
         try {
           if (session?.user) {
+            // First, try to claim any imported profile with this email
+            const userEmail = session.user.email || '';
+            const userName = session.user.user_metadata?.full_name || session.user.user_metadata?.name || '';
+
+            if (userEmail) {
+              const { data: claimResult, error: claimError } = await supabase.rpc('claim_profile_by_email', {
+                p_auth_id: session.user.id,
+                p_email: userEmail,
+                p_name: userName,
+              });
+
+              if (claimError) {
+                console.error('Error claiming profile:', claimError);
+              } else if (claimResult) {
+                console.log('Profile claim result:', claimResult);
+              }
+            }
+
+            // Now fetch the profile
             const { data: profile, error: profileError } = await supabase
               .from('profiles')
               .select('*')
