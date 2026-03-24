@@ -213,89 +213,62 @@ export default function Networking() {
     }
   };
 
-  // Import users from CSV (admin only)
+  // Import users from CSV (admin only) - uses RPC function to bypass RLS
   const handleImportUsers = async (users) => {
     try {
       let importedCount = 0;
+      let errors: string[] = [];
 
       for (const user of users) {
-        const email = (user.email || "").trim().toLowerCase();
+        const email = (user.email || "").trim();
         if (!email) continue;
 
-        // Check if user already exists
-        const { data: existing } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("email", email)
-          .maybeSingle();
-
-        const nameParts = (user.nombre || "").trim().split(" ");
-        const initials = nameParts.length >= 2
-          ? nameParts[0][0] + nameParts[nameParts.length - 1][0]
-          : (nameParts[0] || "??").substring(0, 2);
-
         // Parse expertise if provided (comma or semicolon separated)
-        let expertiseArray: string[] = [];
+        let expertiseArray: string[] | null = null;
         const expertiseRaw = user.expertise || user["tu expertise"] || "";
         if (expertiseRaw) {
           expertiseArray = expertiseRaw.split(/[,;]/).map((e: string) => e.trim()).filter(Boolean);
+          if (expertiseArray.length === 0) expertiseArray = null;
         }
 
-        const profileData = {
-          name: user.nombre || "",
-          email: email,
-          country: user.pais || user.country || "",
-          city: user.ciudad || user.city || "",
-          role: user.rol || user.role || user["tipo de organizacion"] || "",
-          work_type: user.work_type || user["tipo de trabajo"] || "",
-          expertise: expertiseArray.length > 0 ? expertiseArray : null,
-          whatsapp: user.whatsapp || "",
-          linkedin: user.linkedin || "",
-          avatar_initials: initials.toUpperCase(),
-          avatar_color: "#2851A3",
-        };
+        // Call RPC function that bypasses RLS
+        const { data, error } = await supabase.rpc("admin_import_user", {
+          p_email: email,
+          p_name: user.nombre || "",
+          p_country: user.pais || user.country || null,
+          p_city: user.ciudad || user.city || null,
+          p_role: user.rol || user.role || user["tipo de organizacion"] || null,
+          p_work_type: user.work_type || user["tipo de trabajo"] || null,
+          p_expertise: expertiseArray,
+          p_whatsapp: user.whatsapp || null,
+          p_linkedin: user.linkedin || null,
+        });
 
-        let profileId: string;
-        let profileError: any = null;
-
-        if (existing) {
-          // Update existing profile
-          profileId = existing.id;
-          const { error } = await supabase
-            .from("profiles")
-            .update(profileData)
-            .eq("id", existing.id);
-          profileError = error;
-        } else {
-          // Insert new profile
-          profileId = crypto.randomUUID();
-          const { error } = await supabase
-            .from("profiles")
-            .insert({
-              id: profileId,
-              ...profileData,
-              has_logged_in: false,
-              xp: 0,
-              streak: 0,
-              league: "none",
-              swipe_count: 0,
-              match_count: 0,
-              conversations_started: 0,
-            });
-          profileError = error;
+        if (error) {
+          console.error("RPC error for", email, error);
+          errors.push(`${email}: ${error.message}`);
+          continue;
         }
 
-        if (!profileError) {
+        if (data && data.success) {
           importedCount++;
-          if (selectedCohortId) {
-            await supabase.from("cohort_members").upsert({
-              cohort_id: selectedCohortId,
-              profile_id: profileId,
-            }, { onConflict: "cohort_id,profile_id" });
+          console.log(`Imported ${email}:`, data.action);
+
+          // Add to cohort if selected
+          if (selectedCohortId && data.id) {
+            await supabase.rpc("admin_add_to_cohort", {
+              p_profile_id: data.id,
+              p_cohort_id: selectedCohortId,
+            });
           }
         } else {
-          console.error("Error importing user:", email, profileError);
+          console.error("Import failed for", email, data?.error);
+          errors.push(`${email}: ${data?.error || "Unknown error"}`);
         }
+      }
+
+      if (errors.length > 0) {
+        console.error("Import errors:", errors);
       }
 
       return { error: null, count: importedCount };
