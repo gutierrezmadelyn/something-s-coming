@@ -26,10 +26,26 @@ export default function AdminPanel({
   const [cohortForm, setCohortForm] = useState({ name: "", short_name: "", description: "", color: "#2851A3", icon: "📋" });
   const [savingCohort, setSavingCohort] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [importStep, setImportStep] = useState(1); // 1: upload, 2: map, 3: preview
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvRawData, setCsvRawData] = useState<Record<string, any>[]>([]);
+  const [fieldMapping, setFieldMapping] = useState<Record<string, string>>({});
   const [importData, setImportData] = useState([]);
   const [importError, setImportError] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importSuccess, setImportSuccess] = useState(null);
+
+  // System fields that can be mapped
+  const SYSTEM_FIELDS = [
+    { key: "nombre", label: "Nombre", required: true },
+    { key: "email", label: "Email", required: true },
+    { key: "pais", label: "Pais", required: false },
+    { key: "role", label: "Tipo de organizacion", required: false },
+    { key: "work_type", label: "Tipo de trabajo", required: false },
+    { key: "expertise", label: "Tu expertise", required: false },
+    { key: "whatsapp", label: "WhatsApp", required: false },
+    { key: "linkedin", label: "LinkedIn", required: false },
+  ];
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState("cohort"); // "cohort" | "all"
   const [filterCountry, setFilterCountry] = useState("");
@@ -131,7 +147,7 @@ export default function AdminPanel({
           text = text.slice(1);
         }
 
-        // Normalize line endings (Windows \r\n to \n)
+        // Normalize line endings
         text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
         const lines = text.split("\n").filter(line => line.trim());
@@ -141,62 +157,77 @@ export default function AdminPanel({
           return;
         }
 
-        // Detect delimiter (tab, semicolon, or comma)
+        // Detect delimiter
         const firstLine = lines[0];
         let delimiter = ",";
-        if (firstLine.includes("\t")) {
-          delimiter = "\t";
-        } else if (firstLine.includes(";")) {
-          delimiter = ";";
-        }
+        if (firstLine.includes("\t")) delimiter = "\t";
+        else if (firstLine.includes(";")) delimiter = ";";
 
-        const headers = firstLine.toLowerCase().split(delimiter).map(h => h.trim().replace(/"/g, ""));
+        const headers = firstLine.split(delimiter).map(h => h.trim().replace(/"/g, ""));
 
-        console.log("CSV Headers detectados:", headers);
-        console.log("Delimiter usado:", delimiter === "\t" ? "TAB" : delimiter);
-
-        // Check for nombre or "nombre completo"
-        const hasNombre = headers.some(h => h.includes("nombre"));
-        const hasEmail = headers.some(h => h.includes("email") || h.includes("correo"));
-
-        if (!hasNombre || !hasEmail) {
-          const missing = [];
-          if (!hasNombre) missing.push("nombre");
-          if (!hasEmail) missing.push("email");
-          setImportError(`Columnas requeridas faltantes: ${missing.join(", ")}. Columnas encontradas: ${headers.join(", ")}`);
-          return;
-        }
-
-        const data = lines.slice(1).map((line, idx) => {
+        // Parse all rows
+        const rawData = lines.slice(1).map((line, idx) => {
           const values = line.split(delimiter).map(v => v.trim().replace(/"/g, ""));
           const row: Record<string, any> = { _row: idx + 2 };
           headers.forEach((h, i) => { row[h] = values[i] || ""; });
-
-          // Normalize field names - find any header containing "nombre" or "email"
-          const nombreKey = headers.find(h => h.includes("nombre"));
-          const emailKey = headers.find(h => h.includes("email") || h.includes("correo"));
-
-          if (nombreKey && !row.nombre) row.nombre = row[nombreKey];
-          if (emailKey && !row.email) row.email = row[emailKey];
-
           return row;
-        }).filter(row => row.nombre && row.email);
+        }).filter(row => Object.values(row).some(v => v && v !== row._row));
 
-        console.log("Datos parseados:", data);
+        console.log("CSV Headers:", headers);
+        console.log("Raw data rows:", rawData.length);
 
-        if (data.length === 0) {
-          setImportError(`No se encontraron filas validas. Asegurate de que cada fila tenga nombre y email. Total lineas: ${lines.length - 1}`);
-          return;
-        }
+        // Auto-suggest mappings based on header names
+        const autoMapping: Record<string, string> = {};
+        headers.forEach(h => {
+          const hLower = h.toLowerCase();
+          if (hLower.includes("nombre")) autoMapping["nombre"] = h;
+          else if (hLower.includes("email") || hLower.includes("correo")) autoMapping["email"] = h;
+          else if (hLower.includes("pais") || hLower.includes("país") || hLower.includes("country")) autoMapping["pais"] = h;
+          else if (hLower.includes("organizacion") || hLower.includes("organización") || hLower.includes("rol")) autoMapping["role"] = h;
+          else if (hLower.includes("trabajo") || hLower.includes("work")) autoMapping["work_type"] = h;
+          else if (hLower.includes("expertise") || hLower.includes("experiencia")) autoMapping["expertise"] = h;
+          else if (hLower.includes("whatsapp") || hLower.includes("telefono") || hLower.includes("phone")) autoMapping["whatsapp"] = h;
+          else if (hLower.includes("linkedin")) autoMapping["linkedin"] = h;
+        });
 
-        setImportData(data);
+        setCsvHeaders(headers);
+        setCsvRawData(rawData);
+        setFieldMapping(autoMapping);
         setImportError(null);
+        setImportStep(2); // Go to mapping step
       } catch (err) {
         console.error("Error parsing CSV:", err);
         setImportError("Error al procesar el archivo CSV: " + (err as Error).message);
       }
     };
     reader.readAsText(file);
+  };
+
+  // Apply mapping and prepare final data
+  const applyMapping = () => {
+    if (!fieldMapping.nombre || !fieldMapping.email) {
+      setImportError("Debes mapear al menos Nombre y Email");
+      return;
+    }
+
+    const mappedData = csvRawData.map(row => {
+      const mapped: Record<string, any> = { _row: row._row };
+      Object.entries(fieldMapping).forEach(([systemField, csvHeader]) => {
+        if (csvHeader && row[csvHeader] !== undefined) {
+          mapped[systemField] = row[csvHeader];
+        }
+      });
+      return mapped;
+    }).filter(row => row.nombre && row.email);
+
+    if (mappedData.length === 0) {
+      setImportError("No se encontraron filas con nombre y email validos");
+      return;
+    }
+
+    setImportData(mappedData);
+    setImportError(null);
+    setImportStep(3); // Go to preview step
   };
 
   const handleAssignCohort = async (profileId, cohortId) => {
@@ -279,7 +310,7 @@ export default function AdminPanel({
               <button onClick={() => setViewMode("all")} style={{ padding: "6px 12px", borderRadius: "8px", border: "none", background: viewMode === "all" ? S.card : "transparent", color: viewMode === "all" ? S.blue : S.textSec, fontSize: "11px", fontWeight: 600, cursor: "pointer", boxShadow: viewMode === "all" ? "0 1px 3px rgba(0,0,0,0.1)" : "none" }}>Todos ({allSystemProfiles.length})</button>
             </div>
             <div style={{ display: "flex", gap: "8px" }}>
-              {onImportUsers && <Btn variant="primary" style={{ padding: "8px 14px", fontSize: "12px" }} onClick={() => { setShowImportModal(true); setImportData([]); setImportError(null); setImportSuccess(null); }}>📥 Importar</Btn>}
+              {onImportUsers && <Btn variant="primary" style={{ padding: "8px 14px", fontSize: "12px" }} onClick={() => { setShowImportModal(true); setImportStep(1); setCsvHeaders([]); setCsvRawData([]); setFieldMapping({}); setImportData([]); setImportError(null); setImportSuccess(null); }}>📥 Importar</Btn>}
               <Btn variant="outline" style={{ padding: "8px 14px", fontSize: "12px" }} onClick={exportCSV}>📤 Exportar</Btn>
             </div>
           </div>
@@ -445,48 +476,163 @@ export default function AdminPanel({
       {/* Import Modal */}
       {showImportModal && onImportUsers && (
         <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)", padding: "20px" }}>
-          <div style={{ background: S.card, borderRadius: "20px", padding: "24px", width: "100%", maxWidth: "500px", maxHeight: "90vh", overflow: "auto" }}>
-            <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: S.text, margin: "0 0 20px" }}>Importar usuarios desde CSV</h3>
+          <div style={{ background: S.card, borderRadius: "20px", padding: "24px", width: "100%", maxWidth: "600px", maxHeight: "90vh", overflow: "auto" }}>
+            {/* Header with steps */}
+            <div style={{ marginBottom: "20px" }}>
+              <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: S.text, margin: "0 0 12px" }}>Importar usuarios desde CSV</h3>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {[
+                  { step: 1, label: "Subir" },
+                  { step: 2, label: "Mapear" },
+                  { step: 3, label: "Importar" },
+                ].map(s => (
+                  <div key={s.step} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <div style={{ width: 24, height: 24, borderRadius: "50%", background: importStep >= s.step ? S.blue : S.border, color: importStep >= s.step ? "#fff" : S.textTer, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 700 }}>{s.step}</div>
+                    <span style={{ fontSize: "12px", color: importStep >= s.step ? S.text : S.textTer, fontWeight: 600 }}>{s.label}</span>
+                    {s.step < 3 && <span style={{ color: S.border, margin: "0 4px" }}>→</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Success message */}
             {importSuccess !== null && (
               <div style={{ background: S.greenBg, border: `1px solid ${S.green}30`, borderRadius: "12px", padding: "12px 16px", marginBottom: "16px" }}>
-                <p style={{ margin: 0, color: S.green, fontSize: "13px", fontWeight: 500 }}>{importSuccess} usuarios importados correctamente</p>
+                <p style={{ margin: 0, color: S.green, fontSize: "13px", fontWeight: 500 }}>✓ {importSuccess} usuarios importados correctamente</p>
               </div>
             )}
+
+            {/* Error message */}
             {importError && (
               <div style={{ background: S.redBg, border: `1px solid ${S.red}30`, borderRadius: "12px", padding: "12px 16px", marginBottom: "16px" }}>
                 <p style={{ margin: 0, color: S.red, fontSize: "13px", fontWeight: 500 }}>{importError}</p>
               </div>
             )}
-            <div style={{ marginBottom: "16px" }}>
-              <p style={{ fontSize: "12px", color: S.textSec, marginBottom: "8px" }}>El archivo CSV debe tener las siguientes columnas: <strong>nombre, email</strong> (opcionales: pais, tipo de organizacion, tipo de trabajo, tu expertise, whatsapp, linkedin)</p>
-              <input type="file" accept=".csv" onChange={handleFileImport} style={{ width: "100%", padding: "12px", borderRadius: "12px", border: `1.5px solid ${S.border}`, fontSize: "14px" }} />
-            </div>
-            {importData.length > 0 && (
-              <div style={{ marginBottom: "16px" }}>
-                <p style={{ fontSize: "13px", color: S.text, fontWeight: 600, marginBottom: "8px" }}>Vista previa: {importData.length} usuarios</p>
-                <div style={{ maxHeight: "200px", overflow: "auto", background: S.cardLight, borderRadius: "12px", padding: "12px" }}>
-                  {importData.slice(0, 5).map((row, i) => (
-                    <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: i < 4 ? `1px solid ${S.border}` : "none" }}>
-                      <span style={{ fontSize: "12px", color: S.text, fontWeight: 600 }}>{row.nombre}</span>
-                      <span style={{ fontSize: "12px", color: S.textSec }}>{row.email}</span>
+
+            {/* Step 1: Upload */}
+            {importStep === 1 && (
+              <div>
+                <p style={{ fontSize: "13px", color: S.textSec, marginBottom: "12px" }}>Sube un archivo CSV con los datos de los usuarios. En el siguiente paso podras empatar las columnas.</p>
+                <input type="file" accept=".csv" onChange={handleFileImport} style={{ width: "100%", padding: "12px", borderRadius: "12px", border: `1.5px solid ${S.border}`, fontSize: "14px", boxSizing: "border-box" }} />
+              </div>
+            )}
+
+            {/* Step 2: Map columns */}
+            {importStep === 2 && (
+              <div>
+                <p style={{ fontSize: "13px", color: S.textSec, marginBottom: "16px" }}>Empareja cada columna de tu CSV con el campo correspondiente del sistema. Los campos marcados con * son obligatorios.</p>
+                <div style={{ background: S.cardLight, borderRadius: "12px", padding: "16px", marginBottom: "16px" }}>
+                  {SYSTEM_FIELDS.map(field => (
+                    <div key={field.key} style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+                      <label style={{ minWidth: "140px", fontSize: "13px", fontWeight: 600, color: S.text }}>
+                        {field.label} {field.required && <span style={{ color: S.red }}>*</span>}
+                      </label>
+                      <select
+                        value={fieldMapping[field.key] || ""}
+                        onChange={e => setFieldMapping(prev => ({ ...prev, [field.key]: e.target.value }))}
+                        style={{ flex: 1, padding: "10px 12px", borderRadius: "10px", border: `1.5px solid ${fieldMapping[field.key] ? S.green : S.border}`, fontSize: "13px", color: S.text, background: S.card, cursor: "pointer" }}
+                      >
+                        <option value="">-- No mapear --</option>
+                        {csvHeaders.map(h => (
+                          <option key={h} value={h}>{h}</option>
+                        ))}
+                      </select>
+                      {fieldMapping[field.key] && (
+                        <span style={{ color: S.green, fontSize: "14px" }}>✓</span>
+                      )}
                     </div>
                   ))}
-                  {importData.length > 5 && <p style={{ fontSize: "11px", color: S.textTer, textAlign: "center", margin: "8px 0 0" }}>... y {importData.length - 5} mas</p>}
+                </div>
+                <p style={{ fontSize: "11px", color: S.textTer, marginBottom: "12px" }}>Columnas en tu CSV: {csvHeaders.join(", ")}</p>
+                <p style={{ fontSize: "12px", color: S.textSec }}>Se encontraron <strong>{csvRawData.length}</strong> filas en el archivo.</p>
+              </div>
+            )}
+
+            {/* Step 3: Preview & Import */}
+            {importStep === 3 && (
+              <div>
+                <p style={{ fontSize: "13px", color: S.text, fontWeight: 600, marginBottom: "12px" }}>Vista previa: {importData.length} usuarios listos para importar</p>
+                <div style={{ maxHeight: "300px", overflow: "auto", background: S.cardLight, borderRadius: "12px", marginBottom: "16px" }}>
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                    <thead>
+                      <tr style={{ background: S.card, position: "sticky", top: 0 }}>
+                        <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: S.textSec, borderBottom: `1px solid ${S.border}` }}>Nombre</th>
+                        <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: S.textSec, borderBottom: `1px solid ${S.border}` }}>Email</th>
+                        <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: S.textSec, borderBottom: `1px solid ${S.border}` }}>Pais</th>
+                        <th style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, color: S.textSec, borderBottom: `1px solid ${S.border}` }}>Organizacion</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importData.slice(0, 10).map((row, i) => (
+                        <tr key={i} style={{ borderBottom: `1px solid ${S.border}` }}>
+                          <td style={{ padding: "10px 12px", color: S.text, fontWeight: 600 }}>{row.nombre}</td>
+                          <td style={{ padding: "10px 12px", color: S.textSec }}>{row.email}</td>
+                          <td style={{ padding: "10px 12px", color: S.textSec }}>{row.pais || "-"}</td>
+                          <td style={{ padding: "10px 12px", color: S.textSec }}>{row.role || "-"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {importData.length > 10 && <p style={{ fontSize: "11px", color: S.textTer, textAlign: "center", padding: "12px" }}>... y {importData.length - 10} usuarios mas</p>}
                 </div>
               </div>
             )}
-            <div style={{ display: "flex", gap: "12px" }}>
-              <button onClick={() => setShowImportModal(false)} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: `1.5px solid ${S.border}`, background: S.card, color: S.textSec, fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>Cancelar</button>
-              <button disabled={importing || importData.length === 0} onClick={async () => {
-                setImporting(true);
-                setImportError(null);
-                try {
-                  const result = await onImportUsers(importData);
-                  if (result.error) { setImportError(result.error.message); }
-                  else { setImportSuccess(result.count); setImportData([]); if (onRefreshProfiles) onRefreshProfiles(); }
-                } catch (err) { setImportError("Error al importar usuarios"); }
-                setImporting(false);
-              }} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "none", background: importing || importData.length === 0 ? S.textTer : S.blue, color: "#fff", fontSize: "14px", fontWeight: 600, cursor: importing || importData.length === 0 ? "not-allowed" : "pointer" }}>{importing ? "Importando..." : `Importar ${importData.length} usuarios`}</button>
+
+            {/* Buttons */}
+            <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>
+              <button onClick={() => {
+                if (importStep > 1 && importSuccess === null) {
+                  setImportStep(importStep - 1);
+                  setImportError(null);
+                } else {
+                  setShowImportModal(false);
+                  setImportStep(1);
+                  setCsvHeaders([]);
+                  setCsvRawData([]);
+                  setFieldMapping({});
+                  setImportData([]);
+                  setImportError(null);
+                  setImportSuccess(null);
+                }
+              }} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: `1.5px solid ${S.border}`, background: S.card, color: S.textSec, fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>
+                {importStep > 1 && importSuccess === null ? "← Atras" : "Cancelar"}
+              </button>
+
+              {importStep === 2 && (
+                <button onClick={applyMapping} disabled={!fieldMapping.nombre || !fieldMapping.email} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "none", background: !fieldMapping.nombre || !fieldMapping.email ? S.textTer : S.blue, color: "#fff", fontSize: "14px", fontWeight: 600, cursor: !fieldMapping.nombre || !fieldMapping.email ? "not-allowed" : "pointer" }}>
+                  Ver vista previa →
+                </button>
+              )}
+
+              {importStep === 3 && importSuccess === null && (
+                <button disabled={importing || importData.length === 0} onClick={async () => {
+                  setImporting(true);
+                  setImportError(null);
+                  try {
+                    const result = await onImportUsers(importData);
+                    if (result.error) { setImportError(result.error.message); }
+                    else { setImportSuccess(result.count); setImportData([]); if (onRefreshProfiles) onRefreshProfiles(); }
+                  } catch (err) { setImportError("Error al importar usuarios"); }
+                  setImporting(false);
+                }} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "none", background: importing || importData.length === 0 ? S.textTer : S.green, color: "#fff", fontSize: "14px", fontWeight: 600, cursor: importing || importData.length === 0 ? "not-allowed" : "pointer" }}>
+                  {importing ? "Importando..." : `✓ Importar ${importData.length} usuarios`}
+                </button>
+              )}
+
+              {importSuccess !== null && (
+                <button onClick={() => {
+                  setShowImportModal(false);
+                  setImportStep(1);
+                  setCsvHeaders([]);
+                  setCsvRawData([]);
+                  setFieldMapping({});
+                  setImportData([]);
+                  setImportError(null);
+                  setImportSuccess(null);
+                }} style={{ flex: 1, padding: "14px", borderRadius: "12px", border: "none", background: S.green, color: "#fff", fontSize: "14px", fontWeight: 600, cursor: "pointer" }}>
+                  ✓ Listo
+                </button>
+              )}
             </div>
           </div>
         </div>
