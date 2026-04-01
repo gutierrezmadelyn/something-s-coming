@@ -410,6 +410,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_add_to_cohort: {
+        Args: { p_cohort_id: string; p_profile_id: string }
+        Returns: Json
+      }
+      admin_create_auth_user: {
+        Args: { p_email: string; p_name?: string; p_password: string }
+        Returns: Json
+      }
+      admin_import_user: {
+        Args: {
+          p_city?: string
+          p_country?: string
+          p_email: string
+          p_expertise?: string[]
+          p_linkedin?: string
+          p_name: string
+          p_password?: string
+          p_role?: string
+          p_whatsapp?: string
+          p_work_type?: string
+        }
+        Returns: Json
+      }
       award_xp: {
         Args: { p_action: string; p_user_id: string }
         Returns: undefined
@@ -418,23 +441,27 @@ export type Database = {
         Args: { user_a: string; user_b: string }
         Returns: number
       }
+      claim_profile_by_email: {
+        Args: { p_auth_id: string; p_email: string; p_name?: string }
+        Returns: Json
+      }
       delete_user_data: {
         Args: { user_id_to_delete: string }
         Returns: undefined
       }
-      get_leaderboard: {
-        Args: { p_cohort_id?: string }
-        Returns: {
-          avatar_color: string
-          avatar_initials: string
-          league: string
-          name: string
-          photo_url: string
-          rank: number
-          user_id: string
-          xp: number
-        }[]
-      }
+      get_leaderboard:
+        | {
+            Args: { p_cohort_id?: string }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.get_leaderboard(p_cohort_id => text), public.get_leaderboard(p_cohort_id => uuid). Try renaming the parameters or the function itself in the database so function overloading can be resolved"[]
+          }
+        | {
+            Args: { p_cohort_id?: string }
+            Returns: {
+              error: true
+            } & "Could not choose the best candidate function between: public.get_leaderboard(p_cohort_id => text), public.get_leaderboard(p_cohort_id => uuid). Try renaming the parameters or the function itself in the database so function overloading can be resolved"[]
+          }
       get_random_icebreaker: { Args: never; Returns: string }
     }
     Enums: {
