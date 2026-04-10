@@ -276,7 +276,7 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
     organization_description: "",
     pitch: "",
     expertise: [] as string[],
-    wants_to_learn: "",
+    wants_to_learn: [] as string[],
     offers: [] as string[],
     seeks: [] as string[],
     whatsapp: "",
@@ -303,7 +303,7 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         organization_description: profile.organization_description || "",
         pitch: profile.pitch || "",
         expertise: profile.expertise || [],
-        wants_to_learn: profile.wants_to_learn || "",
+        wants_to_learn: Array.isArray(profile.wants_to_learn) ? profile.wants_to_learn : (profile.wants_to_learn ? [profile.wants_to_learn] : []),
         offers: profile.offers || [],
         seeks: profile.seeks || [],
         whatsapp: profile.whatsapp || "",
@@ -315,7 +315,7 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
     }
   }, [profile]);
 
-  const handleToggleArray = (field: "expertise" | "offers" | "seeks", value: string) => {
+  const handleToggleArray = (field: "expertise" | "offers" | "seeks" | "wants_to_learn", value: string) => {
     setFormData(prev => {
       const current = prev[field];
       if (current.includes(value)) {
@@ -563,11 +563,15 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         onChange={(v) => handleToggleArray("expertise", v)}
       />
 
-      <Select
-        label="Quiero aprender sobre"
-        value={formData.wants_to_learn}
-        onChange={(v) => setFormData(prev => ({ ...prev, wants_to_learn: v }))}
+      <MultiSelect
+        label="Quiero aprender sobre (max 3)"
         options={EXPERTISE_OPTIONS}
+        selected={formData.wants_to_learn}
+        onChange={(v) => {
+          if (formData.wants_to_learn.includes(v) || formData.wants_to_learn.length < 3) {
+            handleToggleArray("wants_to_learn", v);
+          }
+        }}
       />
 
       <MultiSelect
@@ -630,10 +634,10 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
       </div>
 
       <Input
-        label="LinkedIn (username)"
+        label="LinkedIn (enlace)"
         value={formData.linkedin}
         onChange={(v) => setFormData(prev => ({ ...prev, linkedin: v }))}
-        placeholder="tu-nombre-linkedin"
+        placeholder="https://www.linkedin.com/in/tu-perfil"
       />
 
       {/* Privacy toggles */}

@@ -27,7 +27,7 @@ export interface Database {
           avatar_color: string | null
           photo_url: string | null
           expertise: string[] | null
-          wants_to_learn: string | null
+          wants_to_learn: string[] | null
           sectors: string[] | null
           offers: string[] | null
           seeks: string[] | null
@@ -64,7 +64,7 @@ export interface Database {
           avatar_color?: string | null
           photo_url?: string | null
           expertise?: string[] | null
-          wants_to_learn?: string | null
+          wants_to_learn?: string[] | null
           sectors?: string[] | null
           offers?: string[] | null
           seeks?: string[] | null
@@ -101,7 +101,7 @@ export interface Database {
           avatar_color?: string | null
           photo_url?: string | null
           expertise?: string[] | null
-          wants_to_learn?: string | null
+          wants_to_learn?: string[] | null
           sectors?: string[] | null
           offers?: string[] | null
           seeks?: string[] | null

@@ -112,7 +112,7 @@ export default function ProfileCard({ profile, currentUser, onLeft, onRight, get
           </div>
           <div style={{ marginBottom: "12px" }}>
             <p style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "0.08em", color: S.textTer, margin: "0 0 5px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Quiere aprender</p>
-            <Tag bg={S.yellowBg} color={S.yellowText}>{profile.wantsToLearn}</Tag>
+            <div style={{ display: "flex", flexWrap: "wrap" }}>{(Array.isArray(profile.wantsToLearn) ? profile.wantsToLearn : [profile.wantsToLearn]).filter(Boolean).map(w => <Tag key={w} bg={S.yellowBg} color={S.yellowText}>{w}</Tag>)}</div>
           </div>
           {expanded && (
             <div>

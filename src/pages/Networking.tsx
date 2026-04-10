@@ -41,7 +41,7 @@ export default function Networking() {
   const [allCohorts, setAllCohorts] = useState([]);
 
   const { profiles: dbProfiles, loading: profilesLoading, recordSwipe, getCompatibility, undoLastSwipe, canUndo } = useProfiles({
-    currentUserId, cohortId: selectedCohortId || undefined, excludeSwiped: true,
+    currentUserId, cohortId: selectedCohortId || undefined, excludeSwiped: false,
   });
   const { matches: dbMatches, startConversation, deleteMatch, createManualMatch } = useMatches(currentUserId);
 

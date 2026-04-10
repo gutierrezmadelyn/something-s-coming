@@ -35,7 +35,7 @@ export const convertProfileToLegacy = (dbProfile: Profile) => {
     orgDescription: dbProfile.organization_description || null,
     pitch: dbProfile.pitch || "",
     expertise: dbProfile.expertise || [],
-    wantsToLearn: dbProfile.wants_to_learn || "",
+    wantsToLearn: Array.isArray(dbProfile.wants_to_learn) ? dbProfile.wants_to_learn : (dbProfile.wants_to_learn ? [dbProfile.wants_to_learn] : []),
     sectors: dbProfile.sectors || [],
     offers: dbProfile.offers || [],
     seeks: dbProfile.seeks || [],
@@ -97,7 +97,9 @@ export const calcCompat = (a, b) => {
   s += a.seeks.filter(x => b.offers.includes(x)).length * 10;
   s += a.expertise.filter(e => !b.expertise.includes(e)).length * 10;
   s += a.sectors.filter(x => b.sectors.includes(x)).length * 7;
-  if (b.expertise.includes(a.wantsToLearn)) s += 15;
-  if (a.expertise.includes(b.wantsToLearn)) s += 10;
+  const aWants = Array.isArray(a.wantsToLearn) ? a.wantsToLearn : (a.wantsToLearn ? [a.wantsToLearn] : []);
+  const bWants = Array.isArray(b.wantsToLearn) ? b.wantsToLearn : (b.wantsToLearn ? [b.wantsToLearn] : []);
+  s += aWants.filter(w => b.expertise.includes(w)).length * 15;
+  s += bWants.filter(w => a.expertise.includes(w)).length * 10;
   return Math.min(Math.round(s), 100);
 };

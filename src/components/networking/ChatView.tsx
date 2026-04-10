@@ -49,7 +49,7 @@ export default function ChatView({ profile, icebreaker, onBack, conversationId, 
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
           {profile.linkedin && (
-            <a href={`https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer"
+            <a href={profile.linkedin.startsWith('http') ? profile.linkedin : `https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer"
               style={{ display: "flex", alignItems: "center", gap: "5px", padding: "6px 12px", borderRadius: "10px", background: S.blueBg, border: `1px solid ${S.blue}30`, color: S.blue, fontSize: "11px", fontWeight: 600, textDecoration: "none", fontFamily: "'DM Sans', sans-serif" }}>
               💼 LinkedIn
             </a>
