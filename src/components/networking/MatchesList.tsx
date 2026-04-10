@@ -19,6 +19,12 @@ export default function MatchesList({ matches, allProfiles, onOpenChat, onUnmatc
     }
   };
 
+  // Filter matches that have valid profiles
+  const validMatches = matches.filter(m => {
+    const profile = allProfiles.find(x => x.id === m.id);
+    return profile != null;
+  });
+
   if (!matches.length) return (
     <div style={{ textAlign: "center", padding: "60px 20px" }}>
       <div style={{ fontSize: "56px", marginBottom: "12px" }}>🎯</div>
@@ -27,12 +33,20 @@ export default function MatchesList({ matches, allProfiles, onOpenChat, onUnmatc
     </div>
   );
 
+  // Show loading state if we have matches but profiles aren't loaded yet
+  if (matches.length > 0 && validMatches.length === 0) return (
+    <div style={{ textAlign: "center", padding: "60px 20px" }}>
+      <div style={{ fontSize: "56px", marginBottom: "12px" }}>⏳</div>
+      <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, fontSize: "20px", color: S.text }}>Cargando conexiones...</h3>
+      <p style={{ fontSize: "14px", color: S.textSec, fontFamily: "'DM Sans', sans-serif" }}>Por favor espera un momento</p>
+    </div>
+  );
+
   return (
     <div style={{ padding: "16px 0" }}>
-      <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: S.text, marginBottom: "16px" }}>Tus Conexiones ({matches.length})</h3>
-      {matches.map(m => {
+      <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: S.text, marginBottom: "16px" }}>Tus Conexiones ({validMatches.length})</h3>
+      {validMatches.map(m => {
         const p = allProfiles.find(x => x.id === m.id);
-        if (!p) return null;
         const showLocation = p.showLocation !== false;
         const isConfirming = confirmUnmatch === m.matchId;
 

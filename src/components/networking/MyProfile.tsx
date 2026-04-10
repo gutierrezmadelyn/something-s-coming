@@ -36,6 +36,7 @@ export default function MyProfile({ profile, privacySettings, onPrivacyChange, m
         <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", color: S.text, margin: "12px 0 4px", fontSize: "22px", fontWeight: 700 }}>{profile.name}</h2>
         <p style={{ color: S.textSec, fontSize: "14px", margin: 0, fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>{profile.role} · {profile.city}, {profile.country}</p>
         {profile.org && <p style={{ color: S.textTer, fontSize: "12px", margin: "4px 0 0", fontFamily: "'DM Sans', sans-serif" }}>{profile.org}</p>}
+        {profile.orgDescription && <p style={{ color: S.textTer, fontSize: "11px", margin: "2px 0 0", fontFamily: "'DM Sans', sans-serif", fontStyle: "italic" }}>{profile.orgDescription}</p>}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "8px", marginTop: "20px" }}>
           {stats.map((stat, i) => (
             <div key={i} style={{ background: S.card, borderRadius: "14px", padding: "12px 8px", border: `1px solid ${S.border}` }}>

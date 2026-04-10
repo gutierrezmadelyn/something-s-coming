@@ -21,6 +21,7 @@ export interface Database {
           role: string | null
           work_type: string | null
           organization: string | null
+          organization_description: string | null
           pitch: string | null
           avatar_initials: string | null
           avatar_color: string | null
@@ -57,6 +58,7 @@ export interface Database {
           role?: string | null
           work_type?: string | null
           organization?: string | null
+          organization_description?: string | null
           pitch?: string | null
           avatar_initials?: string | null
           avatar_color?: string | null
@@ -93,6 +95,7 @@ export interface Database {
           role?: string | null
           work_type?: string | null
           organization?: string | null
+          organization_description?: string | null
           pitch?: string | null
           avatar_initials?: string | null
           avatar_color?: string | null

@@ -129,36 +129,24 @@ export function useProfiles(options: UseProfilesOptions = {}) {
 
     // Check for mutual match (if right swipe)
     if (direction === 'right') {
-      const { data: mutualSwipe } = await supabase
-        .from('swipes')
-        .select('*')
-        .eq('user_id', swipedUserId)
-        .eq('swiped_user_id', currentUserId)
-        .eq('direction', 'right')
-        .single();
+      // Use RPC function to check mutual swipe and create match
+      // This bypasses RLS restrictions on the swipes table
+      const { data: result, error: matchError } = await supabase.rpc('check_and_create_match', {
+        p_user_id: currentUserId,
+        p_swiped_user_id: swipedUserId,
+      });
 
-      if (mutualSwipe) {
-        // Get random icebreaker
-        const { data: icebreaker } = await supabase.rpc('get_random_icebreaker');
+      if (matchError) {
+        console.error('Error checking/creating match:', matchError);
+        return { isMatch: false };
+      }
 
-        // Create match
-        const { data: match, error: matchError } = await supabase
-          .from('matches')
-          .insert({
-            user_id: currentUserId,
-            matched_user_id: swipedUserId,
-            match_type: 'organic',
-            icebreaker: icebreaker || null,
-          })
-          .select()
-          .single();
-
-        if (matchError) {
-          console.error('Error creating match:', matchError);
-          return { isMatch: false };
-        }
-
-        return { isMatch: true, matchId: match?.id };
+      if (result?.is_match) {
+        return {
+          isMatch: true,
+          matchId: result.match_id,
+          icebreaker: result.icebreaker
+        };
       }
     }
 

@@ -30,7 +30,53 @@ export default function ProfileCard({ profile, currentUser, onLeft, onRight, get
       onMouseDown={e => onS(e.clientX)} onMouseMove={e => onM(e.clientX)} onMouseUp={onE} onMouseLeave={() => dragging && onE()}
       onTouchStart={e => onS(e.touches[0].clientX)} onTouchMove={e => onM(e.touches[0].clientX)} onTouchEnd={onE}>
 
-      <div style={{ background: S.card, borderRadius: "24px", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.3)", transform: `translateX(${dragX}px) rotate(${dragX * 0.05}deg)`, transition: dragging ? "none" : "transform 0.4s cubic-bezier(0.34,1.56,0.64,1)", border: `1px solid ${S.border}` }}>
+      {/* Swipe direction indicators */}
+      {dragX < -30 && (
+        <div style={{
+          position: "absolute", top: "50%", left: "8px", transform: "translateY(-50%)",
+          zIndex: 10, display: "flex", flexDirection: "column", alignItems: "center", gap: "4px",
+          opacity: Math.min(Math.abs(dragX) / 100, 1), transition: "opacity 0.1s"
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: "50%", background: S.redBg,
+            border: `2px solid ${S.red}`, display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "20px", color: S.red, fontWeight: 700
+          }}>✕</div>
+          <span style={{ fontSize: "11px", fontWeight: 700, color: S.red, fontFamily: "'DM Sans', sans-serif" }}>Pasar</span>
+        </div>
+      )}
+      {dragX > 30 && (
+        <div style={{
+          position: "absolute", top: "50%", right: "8px", transform: "translateY(-50%)",
+          zIndex: 10, display: "flex", flexDirection: "column", alignItems: "center", gap: "4px",
+          opacity: Math.min(Math.abs(dragX) / 100, 1), transition: "opacity 0.1s"
+        }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: "50%", background: S.greenBg,
+            border: `2px solid ${S.green}`, display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "20px", color: S.green, fontWeight: 700
+          }}>✓</div>
+          <span style={{ fontSize: "11px", fontWeight: 700, color: S.green, fontFamily: "'DM Sans', sans-serif" }}>Conectar</span>
+        </div>
+      )}
+
+      {/* Stamp overlay on card */}
+      {Math.abs(dragX) > 30 && (
+        <div style={{
+          position: "absolute", top: "80px", left: dragX > 0 ? "20px" : "auto", right: dragX < 0 ? "20px" : "auto",
+          zIndex: 20, padding: "6px 16px", borderRadius: "8px",
+          border: `3px solid ${dragX > 0 ? S.green : S.red}`,
+          color: dragX > 0 ? S.green : S.red,
+          fontSize: "18px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif",
+          transform: `rotate(${dragX > 0 ? -15 : 15}deg)`,
+          opacity: Math.min(Math.abs(dragX) / 100, 1),
+          pointerEvents: "none"
+        }}>
+          {dragX > 0 ? "CONECTAR" : "PASAR"}
+        </div>
+      )}
+
+      <div style={{ background: S.card, borderRadius: "24px", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.3)", transform: `translateX(${dragX}px) rotate(${dragX * 0.05}deg)`, transition: dragging ? "none" : "transform 0.4s cubic-bezier(0.34,1.56,0.64,1)", border: `1px solid ${Math.abs(dragX) > 30 ? (dragX > 0 ? S.green : S.red) : S.border}` }}>
         <div style={{ background: `linear-gradient(135deg, ${profile.color}30, ${profile.color}10)`, padding: "32px 20px 20px", position: "relative", borderBottom: `1px solid ${S.border}` }}>
           <CompatBadge score={compat}/>
           <div style={{ display: "flex", justifyContent: "center" }}>
@@ -47,6 +93,7 @@ export default function ProfileCard({ profile, currentUser, onLeft, onRight, get
               <span style={{ fontSize: "12px", color: S.textSec, fontFamily: "'DM Sans', sans-serif" }}>💼 {profile.role}</span>
             </div>
             {profile.org && <p style={{ color: S.textTer, fontSize: "11px", margin: "2px 0 0", fontFamily: "'DM Sans', sans-serif" }}>{profile.org}</p>}
+            {profile.orgDescription && <p style={{ color: S.textTer, fontSize: "10px", margin: "2px 0 0", fontFamily: "'DM Sans', sans-serif", fontStyle: "italic" }}>{profile.orgDescription}</p>}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", marginTop: "10px" }}>
               <Tag bg={`${profile.color}30`} color={profile.color}>{profile.workType === "Independiente" ? "Independiente" : profile.workType === "Organización" ? "Organización" : "Independiente + Org"}</Tag>
               <StreakChip streak={profile.streak || 0} size="small"/>
@@ -88,9 +135,11 @@ export default function ProfileCard({ profile, currentUser, onLeft, onRight, get
           </button>
         </div>
       </div>
-      <div style={{ display: "flex", justifyContent: "center", gap: "24px", marginTop: "20px" }}>
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "16px", marginTop: "20px" }}>
+        <span style={{ fontSize: "11px", color: S.red, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", opacity: 0.7 }}>← Pasar</span>
         <button onClick={onLeft} style={{ width: 64, height: 64, borderRadius: "50%", background: S.redBg, border: `3px solid ${S.red}50`, color: S.red, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "24px", fontWeight: 700, boxShadow: `0 4px 0 ${S.red}30` }}>✕</button>
         <button onClick={onRight} style={{ width: 64, height: 64, borderRadius: "50%", background: S.greenBg, border: `3px solid ${S.green}50`, color: S.green, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: "24px", fontWeight: 700, boxShadow: `0 4px 0 ${S.green}30` }}>✓</button>
+        <span style={{ fontSize: "11px", color: S.green, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", opacity: 0.7 }}>Conectar →</span>
       </div>
     </div>
   );

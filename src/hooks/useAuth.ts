@@ -169,20 +169,6 @@ export function useAuth() {
     return { data, error };
   };
 
-  const signInWithGoogle = async () => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    if (error) {
-      setState(prev => ({ ...prev, loading: false, error }));
-    }
-    return { data, error };
-  };
-
   const signOut = async () => {
     setState(prev => ({ ...prev, loading: true }));
     const { error } = await supabase.auth.signOut();
@@ -314,7 +300,6 @@ export function useAuth() {
     ...state,
     signUp,
     signIn,
-    signInWithGoogle,
     signOut,
     updateProfile,
     deleteAccount,

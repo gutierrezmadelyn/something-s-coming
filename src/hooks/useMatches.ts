@@ -41,18 +41,32 @@ export function useMatches(userId?: string) {
       // Get profiles for matched users
       const otherUserIds = matchesData.map(m =>
         m.user_id === userId ? m.matched_user_id : m.user_id
-      );
+      ).filter(id => id != null);
 
-      const { data: profiles } = await supabase
+      if (otherUserIds.length === 0) {
+        setMatches([]);
+        setLoading(false);
+        return;
+      }
+
+      const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
         .in('id', otherUserIds);
 
+      if (profilesError) {
+        console.error('Error fetching matched profiles:', profilesError);
+      }
+
       // Get conversations for matches
-      const { data: conversations } = await supabase
+      const { data: conversations, error: convError } = await supabase
         .from('conversations')
         .select('*')
         .in('match_id', matchesData.map(m => m.id));
+
+      if (convError) {
+        console.error('Error fetching conversations:', convError);
+      }
 
       // Combine data
       const matchesWithProfiles: MatchWithProfile[] = matchesData.map(match => {

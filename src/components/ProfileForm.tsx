@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import type { Profile } from "@/lib/database.types";
+import { geocodeLocation } from "@/components/networking/utils";
 
 const S = {
   bg: "#FAFBFC",
@@ -272,6 +273,7 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
     role: "",
     work_type: "Independiente",
     organization: "",
+    organization_description: "",
     pitch: "",
     expertise: [] as string[],
     wants_to_learn: "",
@@ -298,6 +300,7 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         role: profile.role || "",
         work_type: profile.work_type || "Independiente",
         organization: profile.organization || "",
+        organization_description: profile.organization_description || "",
         pitch: profile.pitch || "",
         expertise: profile.expertise || [],
         wants_to_learn: profile.wants_to_learn || "",
@@ -376,8 +379,13 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         ? nameParts[0][0] + nameParts[nameParts.length - 1][0]
         : nameParts[0].substring(0, 2);
 
+      // Geocode location from country + city
+      const coords = await geocodeLocation(formData.country, formData.city);
+
       await onSave({
         ...formData,
+        lat: coords.lat,
+        lng: coords.lng,
         avatar_initials: initials.toUpperCase(),
         has_logged_in: true,
       });
@@ -486,12 +494,58 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
       />
 
       {(formData.work_type === "Empleado" || formData.work_type === "Ambos") && (
-        <Input
-          label="Organizacion"
-          value={formData.organization}
-          onChange={(v) => setFormData(prev => ({ ...prev, organization: v }))}
-          placeholder="Nombre de tu organizacion"
-        />
+        <>
+          <Input
+            label="Organizacion"
+            value={formData.organization}
+            onChange={(v) => setFormData(prev => ({ ...prev, organization: v }))}
+            placeholder="Nombre de tu organizacion"
+          />
+          <div style={{ marginBottom: "16px" }}>
+            <label style={{
+              display: "block",
+              fontSize: "12px",
+              fontWeight: 600,
+              color: S.textSec,
+              marginBottom: "6px",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em"
+            }}>
+              Descripcion de la organizacion
+            </label>
+            <textarea
+              value={formData.organization_description}
+              onChange={(e) => {
+                if (e.target.value.length <= 200) {
+                  setFormData(prev => ({ ...prev, organization_description: e.target.value }));
+                }
+              }}
+              placeholder="Breve descripcion de lo que hace tu organizacion"
+              rows={3}
+              maxLength={200}
+              style={{
+                width: "100%",
+                padding: "12px 16px",
+                borderRadius: "12px",
+                border: `1.5px solid ${S.border}`,
+                fontSize: "14px",
+                color: S.text,
+                outline: "none",
+                resize: "vertical",
+                fontFamily: "'DM Sans', sans-serif",
+                boxSizing: "border-box"
+              }}
+            />
+            <p style={{
+              margin: "4px 0 0",
+              fontSize: "11px",
+              color: formData.organization_description.length >= 190 ? S.red : S.textTer,
+              textAlign: "right"
+            }}>
+              {formData.organization_description.length}/200
+            </p>
+          </div>
+        </>
       )}
 
       <Input

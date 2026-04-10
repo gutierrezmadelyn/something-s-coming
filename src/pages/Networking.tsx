@@ -76,25 +76,30 @@ export default function Networking() {
     }
   }, [cohortProfiles]);
 
+  // Sync matched profiles and local matches together to avoid race conditions
   useEffect(() => {
     if (dbMatches.length > 0) {
-      const matchedProfiles = dbMatches.filter(m => m.matchedProfile).map(m => convertProfileToLegacy(m.matchedProfile));
-      setAllLoadedProfiles(prev => {
-        const existing = new Map(prev.map(p => [p.id, p]));
-        let changed = false;
-        matchedProfiles.forEach(p => {
-          if (p && !existing.has(p.id)) {
-            existing.set(p.id, p);
-            changed = true;
-          }
-        });
-        return changed ? Array.from(existing.values()) : prev;
-      });
-    }
-  }, [dbMatches]);
+      // First, add all matched profiles to allLoadedProfiles
+      const matchedProfiles = dbMatches
+        .filter(m => m.matchedProfile)
+        .map(m => convertProfileToLegacy(m.matchedProfile))
+        .filter(Boolean);
 
-  useEffect(() => {
-    if (dbMatches.length > 0) {
+      if (matchedProfiles.length > 0) {
+        setAllLoadedProfiles(prev => {
+          const existing = new Map(prev.map(p => [p.id, p]));
+          let changed = false;
+          matchedProfiles.forEach(p => {
+            if (p && !existing.has(p.id)) {
+              existing.set(p.id, p);
+              changed = true;
+            }
+          });
+          return changed ? Array.from(existing.values()) : prev;
+        });
+      }
+
+      // Then update localMatches
       setLocalMatches(dbMatches.map(m => ({
         id: m.user_id === currentUserId ? m.matched_user_id : m.user_id,
         type: m.match_type || "organic",
@@ -103,6 +108,8 @@ export default function Networking() {
         matchId: m.id,
         conversationId: m.conversation?.id || null,
       })));
+    } else {
+      setLocalMatches([]);
     }
   }, [dbMatches, currentUserId, ICEBREAKERS]);
 
@@ -133,7 +140,8 @@ export default function Networking() {
     awardXP('swipe');
     if (result.isMatch) {
       awardXP('match');
-      const ice = await getRandomIcebreaker();
+      // Use icebreaker from match result, fallback to getting a new one
+      const ice = result.icebreaker || await getRandomIcebreaker();
       setLocalMatches(p => [...p, { id: current.id, type: "organic", icebreaker: ice, hasConversation: false, matchId: result.matchId }]);
       setShowMatch({ profile: current, icebreaker: ice });
     }

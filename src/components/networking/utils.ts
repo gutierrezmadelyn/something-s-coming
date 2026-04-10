@@ -32,6 +32,7 @@ export const convertProfileToLegacy = (dbProfile: Profile) => {
     role: dbProfile.role || "",
     workType: dbProfile.work_type || "Independiente",
     org: dbProfile.organization || null,
+    orgDescription: dbProfile.organization_description || null,
     pitch: dbProfile.pitch || "",
     expertise: dbProfile.expertise || [],
     wantsToLearn: dbProfile.wants_to_learn || "",
@@ -56,6 +57,38 @@ export const convertProfileToLegacy = (dbProfile: Profile) => {
     isAdmin: dbProfile.is_admin || false,
     email: dbProfile.email || "",
   };
+};
+
+// Country capital coordinates as fallback
+const COUNTRY_COORDS: Record<string, { lat: number; lng: number }> = {
+  "El Salvador": { lat: 13.6929, lng: -89.2182 },
+  "Guatemala": { lat: 14.6349, lng: -90.5069 },
+  "Honduras": { lat: 14.0723, lng: -87.1921 },
+  "Peru": { lat: -12.0464, lng: -77.0428 },
+  "Mexico": { lat: 19.4326, lng: -99.1332 },
+  "Venezuela": { lat: 10.4806, lng: -66.9036 },
+  "Colombia": { lat: 4.7110, lng: -74.0721 },
+  "Republica Dominicana": { lat: 18.4861, lng: -69.9312 },
+};
+
+export const geocodeLocation = async (country: string, city: string): Promise<{ lat: number; lng: number }> => {
+  const fallback = COUNTRY_COORDS[country] || { lat: 14.5, lng: -87.5 };
+
+  const query = city ? `${city}, ${country}` : country;
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
+      { headers: { "Accept-Language": "es" } }
+    );
+    const data = await res.json();
+    if (data && data.length > 0) {
+      return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    }
+  } catch {
+    // Silently fall back to country coordinates
+  }
+
+  return fallback;
 };
 
 export const calcCompat = (a, b) => {
