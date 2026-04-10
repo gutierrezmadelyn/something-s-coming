@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Rocket, Search, Target, MessageCircle } from "lucide-react";
 import ProfileForm from "./ProfileForm";
 import type { Profile } from "@/lib/database.types";
 
@@ -29,7 +30,7 @@ export default function Onboarding({ profile, onComplete }: OnboardingProps) {
       subtitle: "La comunidad de catalizadores empresariales",
       content: (
         <div style={{ textAlign: "center", padding: "20px 0" }}>
-          <div style={{ fontSize: "64px", marginBottom: "20px" }}>🚀</div>
+          <div style={{ marginBottom: "20px", display: "flex", justifyContent: "center" }}><Rocket size={48}/></div>
           <h2 style={{
             fontFamily: "'Playfair Display', Georgia, serif",
             fontSize: "24px",
@@ -56,9 +57,9 @@ export default function Onboarding({ profile, onComplete }: OnboardingProps) {
             marginBottom: "24px"
           }}>
             {[
-              { icon: "🔍", label: "Explora perfiles" },
-              { icon: "🎯", label: "Conecta" },
-              { icon: "💬", label: "Colabora" },
+              { icon: <Search size={18}/>, label: "Explora perfiles" },
+              { icon: <Target size={18}/>, label: "Conecta" },
+              { icon: <MessageCircle size={18}/>, label: "Colabora" },
             ].map(item => (
               <div key={item.label} style={{
                 background: S.blueBg,
@@ -66,7 +67,7 @@ export default function Onboarding({ profile, onComplete }: OnboardingProps) {
                 padding: "16px 12px",
                 textAlign: "center"
               }}>
-                <div style={{ fontSize: "24px", marginBottom: "6px" }}>{item.icon}</div>
+                <div style={{ marginBottom: "6px", display: "flex", justifyContent: "center" }}>{item.icon}</div>
                 <p style={{ fontSize: "11px", color: S.blue, fontWeight: 600, margin: 0 }}>
                   {item.label}
                 </p>
@@ -97,25 +98,6 @@ export default function Onboarding({ profile, onComplete }: OnboardingProps) {
       subtitle: "Asi otros catalizadores pueden conocerte mejor",
       content: (
         <div>
-          <div style={{
-            background: S.greenBg,
-            borderRadius: "12px",
-            padding: "12px 16px",
-            marginBottom: "20px",
-            display: "flex",
-            alignItems: "center",
-            gap: "10px"
-          }}>
-            <span style={{ fontSize: "20px" }}>⚡</span>
-            <div>
-              <p style={{ margin: 0, fontSize: "13px", color: S.green, fontWeight: 600 }}>
-                +50 XP por perfil completo
-              </p>
-              <p style={{ margin: "2px 0 0", fontSize: "11px", color: S.textSec }}>
-                Sube de nivel y destaca en el ranking
-              </p>
-            </div>
-          </div>
           <ProfileForm
             profile={profile}
             onSave={async (updates) => {

@@ -1,9 +1,5 @@
 export { Tag } from "./Tag";
-export { XPChip } from "./XPChip";
-export { StreakChip } from "./StreakChip";
 export { Avatar } from "./ProfileAvatar";
 export { CompatBadge } from "./CompatBadge";
 export { Btn } from "./Btn";
 export { Toggle } from "./Toggle";
-export { ProfileBadges } from "./ProfileBadges";
-export { LevelProgressBar } from "./LevelProgressBar";

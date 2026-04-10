@@ -1,25 +1,6 @@
 // @ts-nocheck
 import type { Profile } from "@/lib/database.types";
 
-export const getLevel = (xp) => {
-  if (xp >= 300) return 5;
-  if (xp >= 200) return 4;
-  if (xp >= 120) return 3;
-  if (xp >= 50) return 2;
-  return 1;
-};
-
-export const getLevelThresholds = (level) => {
-  const thresholds = {
-    1: { min: 0, max: 49 },
-    2: { min: 50, max: 119 },
-    3: { min: 120, max: 199 },
-    4: { min: 200, max: 299 },
-    5: { min: 300, max: 999 },
-  };
-  return thresholds[level];
-};
-
 export const convertProfileToLegacy = (dbProfile: Profile) => {
   if (!dbProfile) return null;
   return {
@@ -49,11 +30,8 @@ export const convertProfileToLegacy = (dbProfile: Profile) => {
     swipeCount: dbProfile.swipe_count || 0,
     showLocation: dbProfile.show_location ?? true,
     showPhone: dbProfile.show_phone ?? true,
-    streak: dbProfile.streak || 0,
-    league: dbProfile.league || "none",
     conversationsStarted: dbProfile.conversations_started || 0,
     matchCount: dbProfile.match_count || 0,
-    xp: dbProfile.xp || 0,
     isAdmin: dbProfile.is_admin || false,
     email: dbProfile.email || "",
   };
@@ -66,6 +44,7 @@ const COUNTRY_COORDS: Record<string, { lat: number; lng: number }> = {
   "Honduras": { lat: 14.0723, lng: -87.1921 },
   "Peru": { lat: -12.0464, lng: -77.0428 },
   "Mexico": { lat: 19.4326, lng: -99.1332 },
+  "México": { lat: 19.4326, lng: -99.1332 },
   "Venezuela": { lat: 10.4806, lng: -66.9036 },
   "Colombia": { lat: 4.7110, lng: -74.0721 },
   "Republica Dominicana": { lat: 18.4861, lng: -69.9312 },

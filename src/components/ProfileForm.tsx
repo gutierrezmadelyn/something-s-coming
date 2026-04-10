@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { KeyRound, AlertTriangle } from "lucide-react";
 import type { Profile } from "@/lib/database.types";
 import { geocodeLocation } from "@/components/networking/utils";
 
@@ -65,6 +66,22 @@ const SEEKS_OPTIONS = [
   "Experiencia en otra tematica",
 ];
 
+const SECTOR_OPTIONS = [
+  "Agroindustria",
+  "Comercio",
+  "Construccion",
+  "Educacion",
+  "Energia",
+  "Finanzas",
+  "Manufactura",
+  "OSC",
+  "PyMEs",
+  "Salud",
+  "Servicios profesionales",
+  "Tecnologia",
+  "Turismo",
+];
+
 const ORGANIZATION_TYPE_OPTIONS = [
   "Academia",
   "Asociacion_empresas",
@@ -88,10 +105,123 @@ const COUNTRY_OPTIONS = [
   "Honduras",
   "Peru",
   "Mexico",
+  "México",
   "Venezuela",
   "Colombia",
   "Republica Dominicana",
 ];
+
+// Cities by country - principales ciudades de cada país
+const CITIES_BY_COUNTRY: Record<string, string[]> = {
+  "El Salvador": [
+    "San Salvador",
+    "Santa Ana",
+    "San Miguel",
+    "Soyapango",
+    "Santa Tecla",
+    "Apopa",
+    "Mejicanos",
+    "Delgado",
+    "Usulután",
+    "Ahuachapán",
+  ],
+  "Guatemala": [
+    "Ciudad de Guatemala",
+    "Mixco",
+    "Villa Nueva",
+    "Quetzaltenango",
+    "San Juan Sacatepéquez",
+    "Petapa",
+    "Escuintla",
+    "Chinautla",
+    "Huehuetenango",
+    "Cobán",
+  ],
+  "Honduras": [
+    "Tegucigalpa",
+    "San Pedro Sula",
+    "Choloma",
+    "La Ceiba",
+    "El Progreso",
+    "Comayagua",
+    "Choluteca",
+    "Danlí",
+    "Siguatepeque",
+    "Juticalpa",
+  ],
+  "Peru": [
+    "Lima",
+    "Arequipa",
+    "Trujillo",
+    "Chiclayo",
+    "Piura",
+    "Cusco",
+    "Iquitos",
+    "Huancayo",
+    "Tacna",
+    "Pucallpa",
+  ],
+  "Mexico": [
+    "Ciudad de México",
+    "Guadalajara",
+    "Monterrey",
+    "Puebla",
+    "Tijuana",
+    "León",
+    "Juárez",
+    "Zapopan",
+    "Mérida",
+    "Querétaro",
+  ],
+  "México": [
+    "Ciudad de México",
+    "Guadalajara",
+    "Monterrey",
+    "Puebla",
+    "Tijuana",
+    "León",
+    "Juárez",
+    "Zapopan",
+    "Mérida",
+    "Querétaro",
+  ],
+  "Venezuela": [
+    "Caracas",
+    "Maracaibo",
+    "Valencia",
+    "Barquisimeto",
+    "Maracay",
+    "Ciudad Guayana",
+    "Barcelona",
+    "Maturín",
+    "San Cristóbal",
+    "Barinas",
+  ],
+  "Colombia": [
+    "Bogotá",
+    "Medellín",
+    "Cali",
+    "Barranquilla",
+    "Cartagena",
+    "Cúcuta",
+    "Bucaramanga",
+    "Pereira",
+    "Santa Marta",
+    "Ibagué",
+  ],
+  "Republica Dominicana": [
+    "Santo Domingo",
+    "Santiago de los Caballeros",
+    "Santo Domingo Este",
+    "Santo Domingo Norte",
+    "San Pedro de Macorís",
+    "La Romana",
+    "San Cristóbal",
+    "Puerto Plata",
+    "San Francisco de Macorís",
+    "Higüey",
+  ],
+};
 
 const AVATAR_COLORS = [
   "#58CC02", "#1CB0F6", "#CE82FF", "#FF4B4B", "#FFC800", "#AFAFAF", "#2851A3"
@@ -277,6 +407,7 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
     pitch: "",
     expertise: [] as string[],
     wants_to_learn: [] as string[],
+    sectors: [] as string[],
     offers: [] as string[],
     seeks: [] as string[],
     whatsapp: "",
@@ -304,6 +435,7 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         pitch: profile.pitch || "",
         expertise: profile.expertise || [],
         wants_to_learn: Array.isArray(profile.wants_to_learn) ? profile.wants_to_learn : (profile.wants_to_learn ? [profile.wants_to_learn] : []),
+        sectors: profile.sectors || [],
         offers: profile.offers || [],
         seeks: profile.seeks || [],
         whatsapp: profile.whatsapp || "",
@@ -315,7 +447,7 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
     }
   }, [profile]);
 
-  const handleToggleArray = (field: "expertise" | "offers" | "seeks" | "wants_to_learn", value: string) => {
+  const handleToggleArray = (field: "expertise" | "offers" | "seeks" | "wants_to_learn" | "sectors", value: string) => {
     setFormData(prev => {
       const current = prev[field];
       if (current.includes(value)) {
@@ -468,14 +600,18 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         <Select
           label="Pais"
           value={formData.country}
-          onChange={(v) => setFormData(prev => ({ ...prev, country: v }))}
+          onChange={(v) => setFormData(prev => ({
+            ...prev,
+            country: v,
+            city: "" // Limpiar ciudad cuando cambia el país
+          }))}
           options={COUNTRY_OPTIONS}
         />
-        <Input
+        <Select
           label="Ciudad"
           value={formData.city}
           onChange={(v) => setFormData(prev => ({ ...prev, city: v }))}
-          placeholder="Ej: Ciudad de Guatemala"
+          options={formData.country ? CITIES_BY_COUNTRY[formData.country] || [] : []}
         />
       </div>
 
@@ -486,6 +622,51 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         options={ORGANIZATION_TYPE_OPTIONS}
       />
 
+      <div style={{ marginBottom: "16px" }}>
+        <label style={{
+          display: "block",
+          fontSize: "12px",
+          fontWeight: 600,
+          color: S.textSec,
+          marginBottom: "6px",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em"
+        }}>
+          Descripcion de la organizacion
+        </label>
+        <textarea
+          value={formData.organization_description}
+          onChange={(e) => {
+            if (e.target.value.length <= 200) {
+              setFormData(prev => ({ ...prev, organization_description: e.target.value }));
+            }
+          }}
+          placeholder="Breve descripcion de lo que hace tu organizacion"
+          rows={3}
+          maxLength={200}
+          style={{
+            width: "100%",
+            padding: "12px 16px",
+            borderRadius: "12px",
+            border: `1.5px solid ${S.border}`,
+            fontSize: "14px",
+            color: S.text,
+            outline: "none",
+            resize: "vertical",
+            fontFamily: "'DM Sans', sans-serif",
+            boxSizing: "border-box"
+          }}
+        />
+        <p style={{
+          margin: "4px 0 0",
+          fontSize: "11px",
+          color: formData.organization_description.length >= 190 ? S.red : S.textTer,
+          textAlign: "right"
+        }}>
+          {formData.organization_description.length}/200
+        </p>
+      </div>
+
       <Select
         label="Tipo de trabajo"
         value={formData.work_type}
@@ -493,60 +674,12 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         options={WORK_TYPE_OPTIONS}
       />
 
-      {(formData.work_type === "Empleado" || formData.work_type === "Ambos") && (
-        <>
-          <Input
-            label="Organizacion"
-            value={formData.organization}
-            onChange={(v) => setFormData(prev => ({ ...prev, organization: v }))}
-            placeholder="Nombre de tu organizacion"
-          />
-          <div style={{ marginBottom: "16px" }}>
-            <label style={{
-              display: "block",
-              fontSize: "12px",
-              fontWeight: 600,
-              color: S.textSec,
-              marginBottom: "6px",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em"
-            }}>
-              Descripcion de la organizacion
-            </label>
-            <textarea
-              value={formData.organization_description}
-              onChange={(e) => {
-                if (e.target.value.length <= 200) {
-                  setFormData(prev => ({ ...prev, organization_description: e.target.value }));
-                }
-              }}
-              placeholder="Breve descripcion de lo que hace tu organizacion"
-              rows={3}
-              maxLength={200}
-              style={{
-                width: "100%",
-                padding: "12px 16px",
-                borderRadius: "12px",
-                border: `1.5px solid ${S.border}`,
-                fontSize: "14px",
-                color: S.text,
-                outline: "none",
-                resize: "vertical",
-                fontFamily: "'DM Sans', sans-serif",
-                boxSizing: "border-box"
-              }}
-            />
-            <p style={{
-              margin: "4px 0 0",
-              fontSize: "11px",
-              color: formData.organization_description.length >= 190 ? S.red : S.textTer,
-              textAlign: "right"
-            }}>
-              {formData.organization_description.length}/200
-            </p>
-          </div>
-        </>
-      )}
+      <Input
+        label="Organizacion"
+        value={formData.organization}
+        onChange={(v) => setFormData(prev => ({ ...prev, organization: v }))}
+        placeholder="Nombre de tu organizacion"
+      />
 
       <Input
         label="Tu pitch (describe lo que haces)"
@@ -586,6 +719,13 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         options={SEEKS_OPTIONS}
         selected={formData.seeks}
         onChange={(v) => handleToggleArray("seeks", v)}
+      />
+
+      <MultiSelect
+        label="Sectores en los que trabajas"
+        options={SECTOR_OPTIONS}
+        selected={formData.sectors}
+        onChange={(v) => handleToggleArray("sectors", v)}
       />
 
       <div style={{ marginBottom: "16px" }}>
@@ -633,12 +773,40 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         </div>
       </div>
 
-      <Input
-        label="LinkedIn (enlace)"
-        value={formData.linkedin}
-        onChange={(v) => setFormData(prev => ({ ...prev, linkedin: v }))}
-        placeholder="https://www.linkedin.com/in/tu-perfil"
-      />
+      <div style={{ marginBottom: "16px" }}>
+        <label style={{
+          display: "block",
+          fontSize: "12px",
+          fontWeight: 600,
+          color: S.textSec,
+          marginBottom: "6px",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em"
+        }}>
+          LinkedIn (enlace)
+        </label>
+        <input
+          type="url"
+          value={formData.linkedin}
+          onChange={(e) => setFormData(prev => ({ ...prev, linkedin: e.target.value }))}
+          placeholder="https://www.linkedin.com/in/tu-perfil"
+          style={{
+            width: "100%",
+            padding: "12px 16px",
+            borderRadius: "12px",
+            border: `1.5px solid ${formData.linkedin && !formData.linkedin.startsWith('http') ? S.red : S.border}`,
+            fontSize: "14px",
+            color: S.text,
+            outline: "none",
+            boxSizing: "border-box"
+          }}
+        />
+        {formData.linkedin && !formData.linkedin.startsWith('http') && (
+          <p style={{ margin: "4px 0 0", fontSize: "11px", color: S.red }}>
+            Ingresa el enlace completo (ej: https://www.linkedin.com/in/tu-perfil)
+          </p>
+        )}
+      </div>
 
       {/* Privacy toggles */}
       <div style={{
@@ -772,7 +940,7 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
               gap: "8px"
             }}
           >
-            🔑 {showChangePassword ? "Ocultar" : "Cambiar contrasena"}
+            <KeyRound size={14}/> {showChangePassword ? "Ocultar" : "Cambiar contrasena"}
           </button>
 
           {showChangePassword && (
@@ -938,7 +1106,7 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
                 gap: "8px"
               }}
             >
-              ⚠️ Eliminar mi cuenta
+              <AlertTriangle size={14}/> Eliminar mi cuenta
             </button>
           ) : (
             <div>

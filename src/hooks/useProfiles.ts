@@ -81,20 +81,39 @@ export function useProfiles(options: UseProfilesOptions = {}) {
     }
   }, [currentUserId, cohortId, excludeSwiped, swipedIds]);
 
-  // Initial fetch
+  // Initial fetch - FIXED: Wait for swipedIds before fetching profiles
+  // This prevents the race condition where profiles are fetched before we know which ones to exclude
+  const [swipedIdsLoaded, setSwipedIdsLoaded] = useState(false);
+
   useEffect(() => {
-    if (currentUserId) {
-      fetchSwipedIds();
-    }
+    const init = async () => {
+      if (currentUserId) {
+        await fetchSwipedIds();
+        setSwipedIdsLoaded(true);
+      }
+    };
+    init();
   }, [currentUserId, fetchSwipedIds]);
 
   useEffect(() => {
-    fetchProfiles();
-  }, [fetchProfiles]);
+    // Only fetch profiles after swipedIds have been loaded
+    if (swipedIdsLoaded || !excludeSwiped) {
+      fetchProfiles();
+    }
+  }, [fetchProfiles, swipedIdsLoaded, excludeSwiped]);
 
-  // Record a swipe
-  const recordSwipe = async (swipedUserId: string, direction: 'left' | 'right'): Promise<{ isMatch: boolean; matchId?: string }> => {
+  // Record a swipe with proper error rollback
+  const recordSwipe = async (swipedUserId: string, direction: 'left' | 'right'): Promise<{ isMatch: boolean; matchId?: string; icebreaker?: string }> => {
     if (!currentUserId) return { isMatch: false };
+
+    // Prevent self-swipe
+    if (currentUserId === swipedUserId) {
+      console.error('Cannot swipe on yourself');
+      return { isMatch: false };
+    }
+
+    // Store the profile before removing (for potential rollback)
+    const swipedProfile = profiles.find(p => p.id === swipedUserId);
 
     // Insert swipe
     const swipeData: SwipeInsert = {
@@ -110,7 +129,15 @@ export function useProfiles(options: UseProfilesOptions = {}) {
       .single();
 
     if (swipeError) {
-      console.error('Error recording swipe:', swipeError);
+      // Handle duplicate swipe gracefully (unique constraint violation)
+      if (swipeError.code === '23505') {
+        console.warn('Swipe already exists, skipping duplicate');
+        // Still update local state to reflect the swipe
+        setSwipedIds(prev => new Set([...prev, swipedUserId]));
+        setProfiles(prev => prev.filter(p => p.id !== swipedUserId));
+      } else {
+        console.error('Error recording swipe:', swipeError);
+      }
       return { isMatch: false };
     }
 
@@ -123,14 +150,13 @@ export function useProfiles(options: UseProfilesOptions = {}) {
       });
     }
 
-    // Update local state
+    // Update local state AFTER successful DB operation
     setSwipedIds(prev => new Set([...prev, swipedUserId]));
     setProfiles(prev => prev.filter(p => p.id !== swipedUserId));
 
-    // Check for mutual match (if right swipe)
+    // Check for match (if right swipe)
     if (direction === 'right') {
-      // Use RPC function to check mutual swipe and create match
-      // This bypasses RLS restrictions on the swipes table
+      // Use RPC function to create match
       const { data: result, error: matchError } = await supabase.rpc('check_and_create_match', {
         p_user_id: currentUserId,
         p_swiped_user_id: swipedUserId,
@@ -138,6 +164,8 @@ export function useProfiles(options: UseProfilesOptions = {}) {
 
       if (matchError) {
         console.error('Error checking/creating match:', matchError);
+        // Note: Swipe was successful, just match creation failed
+        // Don't rollback the swipe since it's recorded in DB
         return { isMatch: false };
       }
 

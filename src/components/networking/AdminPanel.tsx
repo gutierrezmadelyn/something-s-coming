@@ -2,6 +2,7 @@
 import { useState, useMemo } from "react";
 import { S } from "./styles";
 import { Avatar, Btn } from "./ui";
+import { Target, MessageCircle, ClipboardList, Pencil, Trash2, DoorOpen, MousePointerClick, HeartCrack } from "lucide-react";
 
 export default function AdminPanel({
   allProfiles,
@@ -101,7 +102,7 @@ export default function AdminPanel({
           <div key={typeof p === "object" ? p.id : i} style={{ display: "flex", alignItems: "center", gap: "8px", padding: "6px 0" }}>
             <Avatar profile={typeof p === "object" ? p : allProfiles.find(x => x.id === p?.id)} size={32}/>
             <span style={{ fontSize: "13px", color: S.text, flex: 1, fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>{typeof p === "object" ? p.name : allProfiles.find(x => x.id === p?.id)?.name}</span>
-            {onAction && <button onClick={() => onAction(typeof p === "object" ? p : allProfiles.find(x => x.id === p?.id))} style={{ padding: "5px 12px", borderRadius: "8px", background: S.blueBg, border: `2px solid ${S.blue}30`, color: S.blue, fontSize: "11px", fontWeight: 700, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}>🎯 Conectar</button>}
+            {onAction && <button onClick={() => onAction(typeof p === "object" ? p : allProfiles.find(x => x.id === p?.id))} style={{ padding: "5px 12px", borderRadius: "8px", background: S.blueBg, border: `2px solid ${S.blue}30`, color: S.blue, fontSize: "11px", fontWeight: 700, cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}><Target size={11}/> Conectar</button>}
           </div>
         ))}
       </div>
@@ -119,11 +120,11 @@ export default function AdminPanel({
   ));
 
   const exportCSV = () => {
-    const headers = ["Nombre", "Email", "Pais", "Ciudad", "Rol", "Expertise", "Ofrece", "Busca", "XP", "Streak", "Liga", "Swipes", "Ha ingresado", "Cohorte"];
+    const headers = ["Nombre", "Email", "Pais", "Ciudad", "Rol", "Expertise", "Ofrece", "Busca", "Swipes", "Ha ingresado", "Cohorte"];
     const rows = (viewMode === "all" ? allSystemProfiles : allProfiles).map(p => [
       p.name, p.email || "", p.country || "", p.city || "", p.role || "",
       (p.expertise || []).join("; "), (p.offers || []).join("; "), (p.seeks || []).join("; "),
-      p.xp || 0, p.streak || 0, p.league || "none", p.swipeCount || 0,
+      p.swipeCount || 0,
       p.hasLoggedIn ? "Si" : "No", cohortName || ""
     ]);
     const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v}"`).join(","))].join("\n");
@@ -248,7 +249,7 @@ export default function AdminPanel({
   return (
     <div style={{ padding: "16px 0" }}>
       <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: S.text, marginBottom: "6px" }}>Panel Admin</h3>
-      {cohortName && <p style={{ fontSize: "11px", color: S.blue, fontWeight: 600, marginBottom: "14px", fontFamily: "'DM Sans', sans-serif" }}>📋 Cohorte activa: {cohortName} · {allProfiles.length} participantes</p>}
+      {cohortName && <p style={{ fontSize: "11px", color: S.blue, fontWeight: 600, marginBottom: "14px", fontFamily: "'DM Sans', sans-serif" }}><ClipboardList size={12}/> Cohorte activa: {cohortName} · {allProfiles.length} participantes</p>}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px", marginBottom: "14px" }}>
         {[
@@ -280,10 +281,10 @@ export default function AdminPanel({
 
       {tab === "alerts" && (
         <div>
-          <AlertCard icon="🚪" title="No han ingresado" items={noLogin} color={S.red} bgColor={S.redBg}/>
-          <AlertCard icon="👆" title="Sin swipes" items={noSwipe} color={S.yellow} bgColor={S.yellowBg}/>
-          <AlertCard icon="💔" title="Sin matches" items={noMatch} color={S.purple} bgColor={S.purpleBg} onAction={onManualMatch}/>
-          <AlertCard icon="💬" title="Matches sin conversacion" items={noConvo.map(m => allProfiles.find(p => p.id === m.id)).filter(Boolean)} color={S.blue} bgColor={S.blueBg}/>
+          <AlertCard icon={<DoorOpen size={16} color={S.red}/>} title="No han ingresado" items={noLogin} color={S.red} bgColor={S.redBg}/>
+          <AlertCard icon={<MousePointerClick size={16} color={S.yellow}/>} title="Sin swipes" items={noSwipe} color={S.yellow} bgColor={S.yellowBg}/>
+          <AlertCard icon={<HeartCrack size={16} color={S.purple}/>} title="Sin matches" items={noMatch} color={S.purple} bgColor={S.purpleBg} onAction={onManualMatch}/>
+          <AlertCard icon={<MessageCircle size={16} color={S.blue}/>} title="Matches sin conversacion" items={noConvo.map(m => allProfiles.find(p => p.id === m.id)).filter(Boolean)} color={S.blue} bgColor={S.blueBg}/>
           {total === 0 && <p style={{ textAlign: "center", color: S.textSec, padding: "40px 0", fontFamily: "'DM Sans', sans-serif", fontWeight: 700 }}>Sin alertas</p>}
         </div>
       )}
@@ -344,7 +345,7 @@ export default function AdminPanel({
                   {p.isAdmin && <span style={{ fontSize: "9px", color: S.purple, background: S.purpleBg, padding: "1px 6px", borderRadius: "4px", fontWeight: 700 }}>Admin</span>}
                 </div>
                 <p style={{ margin: 0, color: S.textTer, fontSize: "11px", fontFamily: "'DM Sans', sans-serif" }}>
-                  {p.email ? `${p.email} · ` : ""}{p.role || "Sin rol"} · {p.xp || 0} XP
+                  {p.email ? `${p.email} · ` : ""}{p.role || "Sin rol"}
                 </p>
               </div>
               <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
@@ -368,9 +369,9 @@ export default function AdminPanel({
                 )}
                 {/* Remove from cohort */}
                 {viewMode === "cohort" && onRemoveMemberFromCohort && selectedCohortId && p.id !== currentUserId && (
-                  <button onClick={() => handleRemoveFromCohort(p.id)} title="Quitar de cohorte" style={{ padding: "5px 10px", borderRadius: "8px", background: S.redBg, border: `1px solid ${S.red}30`, color: S.red, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>✕</button>
+                  <button onClick={() => handleRemoveFromCohort(p.id)} title="Quitar de cohorte" style={{ padding: "5px 10px", borderRadius: "8px", background: S.redBg, border: `1px solid ${S.red}30`, color: S.red, fontSize: "11px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center" }}><Trash2 size={11}/></button>
                 )}
-                <button onClick={() => onManualMatch(p)} style={{ padding: "5px 10px", borderRadius: "8px", background: S.blueBg, border: `1px solid ${S.blue}30`, color: S.blue, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>🎯</button>
+                <button onClick={() => onManualMatch(p)} style={{ padding: "5px 10px", borderRadius: "8px", background: S.blueBg, border: `1px solid ${S.blue}30`, color: S.blue, fontSize: "11px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center" }}><Target size={11}/></button>
               </div>
             </div>
           ))}
@@ -402,12 +403,12 @@ export default function AdminPanel({
                   setEditingCohort(c);
                   setCohortForm({ name: c.name, short_name: c.short_name || "", description: c.description || "", color: c.color || "#2851A3", icon: c.icon || "📋" });
                   setShowCohortModal(true);
-                }} style={{ padding: "6px 12px", borderRadius: "8px", background: S.cardLight, border: `1px solid ${S.border}`, color: S.textSec, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>✏️</button>
+                }} style={{ padding: "6px 12px", borderRadius: "8px", background: S.cardLight, border: `1px solid ${S.border}`, color: S.textSec, fontSize: "11px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center" }}><Pencil size={12}/></button>
                 {onDeleteCohort && <button onClick={async () => {
                   if (confirm(`Eliminar la cohorte "${c.name}"? Se removeran ${c.memberCount || 0} miembros. Esta accion no se puede deshacer.`)) {
                     await onDeleteCohort(c.id);
                   }
-                }} style={{ padding: "6px 12px", borderRadius: "8px", background: S.redBg, border: `1px solid ${S.red}30`, color: S.red, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>🗑️</button>}
+                }} style={{ padding: "6px 12px", borderRadius: "8px", background: S.redBg, border: `1px solid ${S.red}30`, color: S.red, fontSize: "11px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center" }}><Trash2 size={12}/></button>}
               </div>
             </div>
           ))}

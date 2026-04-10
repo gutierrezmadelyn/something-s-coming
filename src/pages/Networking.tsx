@@ -1,11 +1,11 @@
 // @ts-nocheck
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfiles, useAllProfiles } from "@/hooks/useProfiles";
 import { useCohorts, useIcebreakers } from "@/hooks/useCohorts";
-import { useXP } from "@/hooks/useXP";
 import { useMatches } from "@/hooks/useMatches";
+import { useNotifications } from "@/hooks/useNotifications";
 import ProfileForm from "@/components/ProfileForm";
 import Onboarding from "@/components/Onboarding";
 import { supabase } from "@/lib/supabase";
@@ -15,9 +15,10 @@ import { DEFAULT_ICEBREAKERS } from "@/components/networking/constants";
 import { convertProfileToLegacy, calcCompat } from "@/components/networking/utils";
 import {
   MapView, ProfileCard, MatchAnimation, ChatView,
-  MatchesList, Leaderboard, MyProfile, AdminPanel,
+  MatchesList, MyProfile, AdminPanel,
   Header, CohortPicker, BottomNav, UndoButton,
 } from "@/components/networking";
+import { Search, Target, Map as MapIcon, User, Shield, Settings, CheckCircle, Lock } from "lucide-react";
 
 export default function Networking() {
   const navigate = useNavigate();
@@ -30,7 +31,7 @@ export default function Networking() {
   const [tab, setTab] = useState("swipe");
   const [localMatches, setLocalMatches] = useState([]);
   const [showMatch, setShowMatch] = useState(null);
-  const [swiped, setSwiped] = useState(new Set());
+  const [currentProfileIndex, setCurrentProfileIndex] = useState(0);
   const [chatMatch, setChatMatch] = useState(null);
   const [privacySettings, setPrivacySettings] = useState({ showLocation: true, showPhone: true });
   const [selectedCohortId, setSelectedCohortId] = useState(null);
@@ -40,18 +41,42 @@ export default function Networking() {
   const [allLoadedProfiles, setAllLoadedProfiles] = useState([]);
   const [allCohorts, setAllCohorts] = useState([]);
 
-  const { profiles: dbProfiles, loading: profilesLoading, recordSwipe, getCompatibility, undoLastSwipe, canUndo } = useProfiles({
-    currentUserId, cohortId: selectedCohortId || undefined, excludeSwiped: false,
+  // Search and filter state
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    sectors: [],
+    expertise: [],
+    city: "",
   });
-  const { matches: dbMatches, startConversation, deleteMatch, createManualMatch } = useMatches(currentUserId);
+
+  const { profiles: dbProfiles, loading: profilesLoading, recordSwipe, getCompatibility, undoLastSwipe, canUndo } = useProfiles({
+    currentUserId, cohortId: selectedCohortId || undefined, excludeSwiped: true,  // FIXED: Was false, causing already-swiped profiles to show
+  });
+  const { matches: dbMatches, startConversation, deleteMatch, createManualMatch, markAsRead } = useMatches(currentUserId);
 
   // All profiles for admin view
   const { profiles: allSystemDbProfiles, refetch: refetchAllProfiles } = useAllProfiles();
   const allSystemProfiles = useMemo(() => allSystemDbProfiles.map(convertProfileToLegacy).filter(Boolean), [allSystemDbProfiles]);
-  const { awardXP } = useXP(currentUserId);
+  const { permission, requestPermission, showNotification, updateBadge, playSound } = useNotifications();
+  const activeChatRef = useRef<string | null>(null);
 
   const me = useMemo(() => authProfile ? convertProfileToLegacy(authProfile) : null, [authProfile]);
   const cohortProfiles = useMemo(() => dbProfiles.map(convertProfileToLegacy).filter(Boolean), [dbProfiles]);
+
+  // Profiles for map - includes cohort + matched profiles
+  const mapProfiles = useMemo(() => {
+    const profileMap = new Map();
+    cohortProfiles.forEach(p => { if (p?.id) profileMap.set(p.id, p); });
+    dbMatches.forEach(m => {
+      if (m.matchedProfile) {
+        const lp = convertProfileToLegacy(m.matchedProfile);
+        if (lp?.id && !profileMap.has(lp.id)) profileMap.set(lp.id, lp);
+      }
+    });
+    if (me?.id) profileMap.set(me.id, me);
+    return Array.from(profileMap.values());
+  }, [cohortProfiles, dbMatches, me]);
 
   // Fetch all cohorts for admin
   useEffect(() => {
@@ -59,6 +84,83 @@ export default function Networking() {
       fetchAllCohorts().then(setAllCohorts);
     }
   }, [me?.isAdmin]);
+
+  // Request notification permission on load
+  useEffect(() => {
+    if (currentUserId && permission === 'default') {
+      // Delay the request slightly to not overwhelm the user on first load
+      const timer = setTimeout(() => {
+        requestPermission();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [currentUserId, permission, requestPermission]);
+
+  // Update active chat ref
+  useEffect(() => {
+    if (tab === "chat" && chatMatch?.conversationId) {
+      activeChatRef.current = chatMatch.conversationId;
+    } else {
+      activeChatRef.current = null;
+    }
+  }, [tab, chatMatch?.conversationId]);
+
+  // Calculate total unread count and update badge
+  const totalUnread = useMemo(() => {
+    return dbMatches.reduce((sum, m) => sum + (m.unreadCount || 0), 0);
+  }, [dbMatches]);
+
+  useEffect(() => {
+    updateBadge(totalUnread);
+  }, [totalUnread, updateBadge]);
+
+  // Subscribe to new messages for notifications
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const channel = supabase
+      .channel('notification-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+        },
+        async (payload) => {
+          const message = payload.new as any;
+
+          // Don't notify for own messages
+          if (message.sender_id === currentUserId) return;
+
+          // Don't notify if viewing this conversation
+          if (activeChatRef.current === message.conversation_id) return;
+
+          // Get sender info from allLoadedProfiles
+          const sender = allLoadedProfiles.find(p => p.id === message.sender_id);
+          const senderName = sender?.name || 'Alguien';
+
+          // Show notification
+          showNotification({
+            title: `Nuevo mensaje de ${senderName}`,
+            body: message.content.length > 50
+              ? message.content.substring(0, 50) + '...'
+              : message.content,
+            tag: `message-${message.conversation_id}`,
+          });
+
+          // Play sound
+          playSound();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe().then(() => {
+        supabase.removeChannel(channel);
+      });
+    };
+  }, [currentUserId, allLoadedProfiles, showNotification, playSound]);
 
   useEffect(() => {
     if (cohortProfiles.length > 0) {
@@ -107,6 +209,9 @@ export default function Networking() {
         hasConversation: m.has_conversation || !!m.conversation,
         matchId: m.id,
         conversationId: m.conversation?.id || null,
+        unreadCount: m.unreadCount || 0,
+        lastMessage: m.lastMessage || null,
+        lastMessageAt: m.lastMessageAt || m.created_at,
       })));
     } else {
       setLocalMatches([]);
@@ -128,23 +233,113 @@ export default function Networking() {
   }, [cohorts, userCohorts, selectedCohortId]);
 
   const selectedCohort = cohorts.find(c => c.id === selectedCohortId);
-  const sorted = cohortProfiles.filter(p => p.id !== currentUserId && !swiped.has(p.id)).sort((a, b) => (me ? calcCompat(me, b) - calcCompat(me, a) : 0));
-  const current = sorted[0];
 
-  useEffect(() => { setSwiped(new Set()); }, [selectedCohortId]);
+  // Get unique filter options from profiles
+  const filterOptions = useMemo(() => {
+    const allSectors = new Set();
+    const allExpertise = new Set();
+    const allCities = new Set();
+
+    cohortProfiles.forEach(p => {
+      (p.sectors || []).forEach(s => allSectors.add(s));
+      (p.expertise || []).forEach(e => allExpertise.add(e));
+      if (p.city) allCities.add(p.city);
+    });
+
+    return {
+      sectors: Array.from(allSectors).sort(),
+      expertise: Array.from(allExpertise).sort(),
+      cities: Array.from(allCities).sort(),
+    };
+  }, [cohortProfiles]);
+
+  // Filter and sort profiles
+  const sorted = useMemo(() => {
+    let filtered = cohortProfiles.filter(p => p.id !== currentUserId);
+
+    // Apply search filter
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(p =>
+        p.name?.toLowerCase().includes(term) ||
+        p.role?.toLowerCase().includes(term) ||
+        p.org?.toLowerCase().includes(term) ||
+        p.pitch?.toLowerCase().includes(term)
+      );
+    }
+
+    // Apply sector filter
+    if (filters.sectors.length > 0) {
+      filtered = filtered.filter(p =>
+        (p.sectors || []).some(s => filters.sectors.includes(s))
+      );
+    }
+
+    // Apply expertise filter
+    if (filters.expertise.length > 0) {
+      filtered = filtered.filter(p =>
+        (p.expertise || []).some(e => filters.expertise.includes(e))
+      );
+    }
+
+    // Apply city filter
+    if (filters.city) {
+      filtered = filtered.filter(p => p.city === filters.city);
+    }
+
+    // Sort by compatibility
+    return filtered.sort((a, b) => (me ? calcCompat(me, b) - calcCompat(me, a) : 0));
+  }, [cohortProfiles, currentUserId, me, searchTerm, filters]);
+
+  // Check if any filters are active
+  const hasActiveFilters = searchTerm.trim() || filters.sectors.length > 0 || filters.expertise.length > 0 || filters.city;
+
+  // Clear all filters
+  const clearFilters = useCallback(() => {
+    setSearchTerm("");
+    setFilters({ sectors: [], expertise: [], city: "" });
+  }, []);
+
+  // Circular index - wraps around when reaching the end
+  const current = sorted.length > 0 ? sorted[currentProfileIndex % sorted.length] : null;
+
+  // Check if current profile already has a match
+  const currentHasMatch = current ? localMatches.some(m => m.id === current.id) : false;
+
+  // Reset index when cohort changes
+  useEffect(() => { setCurrentProfileIndex(0); }, [selectedCohortId]);
+
+  // Move to next profile (circular)
+  const nextProfile = () => {
+    if (sorted.length > 0) {
+      setCurrentProfileIndex(prev => (prev + 1) % sorted.length);
+    }
+  };
 
   const swipe = async (dir) => {
     if (!current || !currentUserId) return;
-    setSwiped(p => new Set([...p, current.id]));
+
+    // If already has match and swiping right, go to chat instead
+    if (dir === 'right' && currentHasMatch) {
+      const existingMatch = localMatches.find(m => m.id === current.id);
+      if (existingMatch) {
+        openChat(existingMatch);
+        return;
+      }
+    }
+
+    // Record swipe and check for match
     const result = await recordSwipe(current.id, dir);
-    awardXP('swipe');
-    if (result.isMatch) {
-      awardXP('match');
+
+    if (result.isMatch && !currentHasMatch) {
       // Use icebreaker from match result, fallback to getting a new one
       const ice = result.icebreaker || await getRandomIcebreaker();
       setLocalMatches(p => [...p, { id: current.id, type: "organic", icebreaker: ice, hasConversation: false, matchId: result.matchId }]);
       setShowMatch({ profile: current, icebreaker: ice });
     }
+
+    // Always move to next profile
+    nextProfile();
   };
 
   const openChat = async (m) => {
@@ -153,34 +348,30 @@ export default function Networking() {
     if (m.matchId && !conversationId) {
       const conv = await startConversation(m.matchId);
       conversationId = conv?.id;
-      if (isNew && conversationId) awardXP('conversation_started');
     }
     setChatMatch({ ...m, conversationId });
     setTab("chat");
     setLocalMatches(p => p.map(x => x.id === m.id ? { ...x, hasConversation: true, conversationId } : x));
+
+    // Mark messages as read when opening chat
+    if (conversationId && markAsRead) {
+      markAsRead(conversationId);
+    }
   };
 
   const manualMatch = async (profile) => {
     if (!createManualMatch) return;
+    // Prevent self-match
+    if (profile.id === currentUserId) {
+      console.error('Cannot match with yourself');
+      return;
+    }
     const ice = await getRandomIcebreaker();
     const result = await createManualMatch(profile.id, ice);
     if (!result.error && result.matchId) {
       if (!localMatches.find(m => m.id === profile.id)) {
         setLocalMatches(p => [...p, { id: profile.id, type: "cupido", icebreaker: ice, hasConversation: false, matchId: result.matchId }]);
       }
-    }
-  };
-
-  const contactFromLeaderboard = async (profile) => {
-    const existing = localMatches.find(m => m.id === profile.id);
-    if (existing) { openChat(existing); return; }
-    if (!createManualMatch) return;
-    const ice = await getRandomIcebreaker();
-    const result = await createManualMatch(profile.id, ice);
-    if (!result.error && result.matchId) {
-      const newMatch = { id: profile.id, type: "cupido", icebreaker: ice, hasConversation: false, matchId: result.matchId };
-      setLocalMatches(p => [...p, newMatch]);
-      openChat(newMatch);
     }
   };
 
@@ -192,7 +383,6 @@ export default function Networking() {
   const handleSaveProfile = async (updates) => {
     const completing = showOnboarding || !authProfile?.has_logged_in;
     await updateProfile(updates);
-    if (completing) awardXP('profile_complete');
     setShowEditProfile(false);
     setShowOnboarding(false);
   };
@@ -211,12 +401,9 @@ export default function Networking() {
   const handleUndoSwipe = async () => {
     if (undoLastSwipe) {
       const result = await undoLastSwipe();
-      if (result.success && result.undoneProfile) {
-        setSwiped(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(result.undoneProfile.id);
-          return newSet;
-        });
+      if (result.success) {
+        // Go back to previous profile
+        setCurrentProfileIndex(prev => prev > 0 ? prev - 1 : sorted.length - 1);
       }
     }
   };
@@ -288,13 +475,12 @@ export default function Networking() {
 
   // Only show Admin tab for admins
   const baseTabs = [
-    { id: "swipe", label: "Explorar", icon: "🔍" },
-    { id: "leaderboard", label: "Ranking", icon: "🏆" },
-    { id: "matches", label: "Conexiones", icon: "🎯", badge: localMatches.length || undefined },
-    { id: "map", label: "Mapa", icon: "🗺️" },
-    { id: "profile", label: "Perfil", icon: "👤" },
+    { id: "swipe", label: "Explorar", icon: <Search size={18} /> },
+    { id: "matches", label: "Conexiones", icon: <Target size={18} />, badge: localMatches.length || undefined },
+    { id: "map", label: "Mapa", icon: <MapIcon size={18} /> },
+    { id: "profile", label: "Perfil", icon: <User size={18} /> },
   ];
-  const tabs = me?.isAdmin ? [...baseTabs, { id: "admin", label: "Admin", icon: "🛡️" }] : baseTabs;
+  const tabs = me?.isAdmin ? [...baseTabs, { id: "admin", label: "Admin", icon: <Shield size={18} /> }] : baseTabs;
 
   if (showOnboarding && authProfile) return <Onboarding profile={authProfile} onComplete={handleSaveProfile} />;
 
@@ -317,30 +503,242 @@ export default function Networking() {
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
       <style>{`* { box-sizing: border-box; margin: 0; } ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: ${S.border}; border-radius: 4px; } input::placeholder { color: ${S.textTer}; }`}</style>
 
-      <Header me={me} selectedCohort={selectedCohort} onToggleCohortPicker={() => setShowCohortPicker(!showCohortPicker)} onLogout={handleLogout} />
-      {showCohortPicker && <CohortPicker cohorts={cohorts} selectedCohortId={selectedCohortId} onSelect={setSelectedCohortId} onClose={() => setShowCohortPicker(false)} />}
+      {/* Hide main header when in chat mode */}
+      {tab !== "chat" && (
+        <Header me={me} selectedCohort={selectedCohort} onToggleCohortPicker={() => setShowCohortPicker(!showCohortPicker)} onLogout={handleLogout} />
+      )}
+      {showCohortPicker && tab !== "chat" && <CohortPicker cohorts={cohorts} selectedCohortId={selectedCohortId} onSelect={setSelectedCohortId} onClose={() => setShowCohortPicker(false)} />}
 
-      <div style={{ maxWidth: 440, margin: "0 auto", padding: "14px 14px 100px", minHeight: "calc(100vh - 130px)" }}>
+      <div style={{
+        maxWidth: tab === "chat" ? "100%" : 440,
+        margin: "0 auto",
+        padding: tab === "chat" ? "0" : "14px 14px 100px",
+        minHeight: tab === "chat" ? undefined : "calc(100vh - 130px)",
+        height: tab === "chat" ? "100dvh" : undefined,
+        display: tab === "chat" ? "flex" : undefined,
+        flexDirection: tab === "chat" ? "column" : undefined,
+      }}>
         {tab === "swipe" && (
           <div>
-            <div style={{ display: "flex", justifyContent: "center" }}>
+            {/* Search Bar */}
+            <div style={{ marginBottom: "12px" }}>
+              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                <div style={{ flex: 1, position: "relative" }}>
+                  <input
+                    type="text"
+                    placeholder="Buscar por nombre, rol u organizacion..."
+                    value={searchTerm}
+                    onChange={(e) => { setSearchTerm(e.target.value); setCurrentProfileIndex(0); }}
+                    style={{
+                      width: "100%",
+                      padding: "10px 12px 10px 36px",
+                      borderRadius: "12px",
+                      border: `1px solid ${S.border}`,
+                      background: S.card,
+                      fontSize: "14px",
+                      fontFamily: "'DM Sans', sans-serif",
+                      color: S.text,
+                      outline: "none",
+                    }}
+                  />
+                  <span style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: S.textTer, display: "flex", alignItems: "center" }}><Search size={16} /></span>
+                </div>
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  style={{
+                    padding: "10px 14px",
+                    borderRadius: "12px",
+                    border: `1px solid ${hasActiveFilters ? S.blue : S.border}`,
+                    background: hasActiveFilters ? S.blueBg : S.card,
+                    color: hasActiveFilters ? S.blue : S.textSec,
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontWeight: 600,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px",
+                  }}
+                >
+                  <Settings size={16} /> Filtros {hasActiveFilters && `(${filters.sectors.length + filters.expertise.length + (filters.city ? 1 : 0)})`}
+                </button>
+              </div>
+
+              {/* Filter Panel */}
+              {showFilters && (
+                <div style={{
+                  background: S.card,
+                  border: `1px solid ${S.border}`,
+                  borderRadius: "12px",
+                  padding: "16px",
+                  marginBottom: "12px",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                    <span style={{ fontSize: "14px", fontWeight: 700, color: S.text, fontFamily: "'DM Sans', sans-serif" }}>Filtros</span>
+                    {hasActiveFilters && (
+                      <button onClick={clearFilters} style={{ padding: "4px 10px", borderRadius: "8px", border: "none", background: S.redBg, color: S.red, fontSize: "12px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>
+                        Limpiar todo
+                      </button>
+                    )}
+                  </div>
+
+                  {/* City Filter */}
+                  <div style={{ marginBottom: "12px" }}>
+                    <label style={{ fontSize: "12px", color: S.textSec, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", display: "block", marginBottom: "6px" }}>Ciudad</label>
+                    <select
+                      value={filters.city}
+                      onChange={(e) => { setFilters(f => ({ ...f, city: e.target.value })); setCurrentProfileIndex(0); }}
+                      style={{
+                        width: "100%",
+                        padding: "8px 12px",
+                        borderRadius: "8px",
+                        border: `1px solid ${S.border}`,
+                        background: S.card,
+                        fontSize: "13px",
+                        fontFamily: "'DM Sans', sans-serif",
+                        color: S.text,
+                      }}
+                    >
+                      <option value="">Todas las ciudades</option>
+                      {filterOptions.cities.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Sector Filter */}
+                  <div style={{ marginBottom: "12px" }}>
+                    <label style={{ fontSize: "12px", color: S.textSec, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", display: "block", marginBottom: "6px" }}>Sectores</label>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                      {filterOptions.sectors.slice(0, 12).map(s => (
+                        <button
+                          key={s}
+                          onClick={() => {
+                            setFilters(f => ({
+                              ...f,
+                              sectors: f.sectors.includes(s) ? f.sectors.filter(x => x !== s) : [...f.sectors, s]
+                            }));
+                            setCurrentProfileIndex(0);
+                          }}
+                          style={{
+                            padding: "5px 10px",
+                            borderRadius: "8px",
+                            border: `1px solid ${filters.sectors.includes(s) ? S.blue : S.border}`,
+                            background: filters.sectors.includes(s) ? S.blueBg : S.card,
+                            color: filters.sectors.includes(s) ? S.blue : S.textSec,
+                            fontSize: "12px",
+                            cursor: "pointer",
+                            fontFamily: "'DM Sans', sans-serif",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Expertise Filter */}
+                  <div>
+                    <label style={{ fontSize: "12px", color: S.textSec, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", display: "block", marginBottom: "6px" }}>Experticia</label>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                      {filterOptions.expertise.slice(0, 12).map(e => (
+                        <button
+                          key={e}
+                          onClick={() => {
+                            setFilters(f => ({
+                              ...f,
+                              expertise: f.expertise.includes(e) ? f.expertise.filter(x => x !== e) : [...f.expertise, e]
+                            }));
+                            setCurrentProfileIndex(0);
+                          }}
+                          style={{
+                            padding: "5px 10px",
+                            borderRadius: "8px",
+                            border: `1px solid ${filters.expertise.includes(e) ? S.green : S.border}`,
+                            background: filters.expertise.includes(e) ? S.greenBg : S.card,
+                            color: filters.expertise.includes(e) ? S.green : S.textSec,
+                            fontSize: "12px",
+                            cursor: "pointer",
+                            fontFamily: "'DM Sans', sans-serif",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Results count */}
+              {hasActiveFilters && (
+                <div style={{ fontSize: "12px", color: S.textSec, fontFamily: "'DM Sans', sans-serif", marginBottom: "8px", textAlign: "center" }}>
+                  {sorted.length} perfil{sorted.length !== 1 ? 'es' : ''} encontrado{sorted.length !== 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
               <UndoButton canUndo={canUndo} onUndo={handleUndoSwipe} />
+              {sorted.length > 0 && (
+                <span style={{ fontSize: "12px", color: S.textSec, fontFamily: "'DM Sans', sans-serif" }}>
+                  {(currentProfileIndex % sorted.length) + 1} / {sorted.length}
+                </span>
+              )}
             </div>
             {current ? (
-              <ProfileCard profile={current} currentUser={me} onLeft={() => swipe("left")} onRight={() => swipe("right")} getCompatibility={getCompatibility}/>
+              <>
+                {currentHasMatch && (
+                  <div style={{
+                    background: S.greenBg,
+                    color: S.green,
+                    padding: "8px 16px",
+                    borderRadius: "8px",
+                    textAlign: "center",
+                    marginBottom: "12px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    fontFamily: "'DM Sans', sans-serif"
+                  }}>
+                    <CheckCircle size={14} style={{ display: "inline-block", verticalAlign: "middle", marginRight: 4 }} /> Ya tienes conexión con esta persona
+                  </div>
+                )}
+                <ProfileCard profile={current} currentUser={me} onLeft={() => swipe("left")} onRight={() => swipe("right")} getCompatibility={getCompatibility} hasMatch={currentHasMatch}/>
+              </>
             ) : (
               <div style={{ textAlign: "center", padding: "60px 20px" }}>
-                <div style={{ fontSize: 56, marginBottom: 12 }}>🎉</div>
-                <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, fontSize: 20, color: S.text }}>Exploraste todos!</h3>
-                <p style={{ fontSize: 14, color: S.textSec }}>Revisa tus conexiones y conecta</p>
+                <div style={{ fontSize: 56, marginBottom: 12 }}>👥</div>
+                <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, fontSize: 20, color: S.text }}>No hay perfiles</h3>
+                <p style={{ fontSize: 14, color: S.textSec }}>No hay miembros en esta cohorte aún</p>
               </div>
             )}
           </div>
         )}
-        {tab === "map" && <MapView profiles={[...cohortProfiles, ...(me ? [me] : [])]} privacySettings={privacySettings} currentUserId={currentUserId}/>}
-        {tab === "leaderboard" && <Leaderboard profiles={cohortProfiles} matches={localMatches} currentUserId={currentUserId} onContact={contactFromLeaderboard} cohortId={selectedCohortId}/>}
+        {tab === "map" && (
+          <MapView
+            profiles={mapProfiles}
+            privacySettings={privacySettings}
+            currentUserId={currentUserId}
+            currentUser={me}
+            matches={localMatches}
+            onConnect={manualMatch}
+            onOpenChat={openChat}
+            getCompatibility={getCompatibility}
+          />
+        )}
         {tab === "matches" && <MatchesList matches={localMatches} allProfiles={allLoadedProfiles} onOpenChat={openChat} onUnmatch={handleUnmatch}/>}
-        {tab === "chat" && chatMatch && <ChatView profile={allLoadedProfiles.find(p => p.id === chatMatch.id)} icebreaker={chatMatch.icebreaker} onBack={() => setTab("matches")} conversationId={chatMatch.conversationId} currentUserId={currentUserId}/>}
+        {tab === "chat" && chatMatch && (
+          <ChatView
+            profile={allLoadedProfiles.find(p => p.id === chatMatch.id)}
+            icebreaker={chatMatch.icebreaker}
+            onBack={() => setTab("matches")}
+            conversationId={chatMatch.conversationId}
+            currentUserId={currentUserId}
+            allMatches={localMatches}
+            allProfiles={allLoadedProfiles}
+            onSwitchChat={openChat}
+          />
+        )}
         {tab === "profile" && !showEditProfile && <MyProfile profile={me} privacySettings={privacySettings} onPrivacyChange={handlePrivacyChange} matches={localMatches} onEdit={() => setShowEditProfile(true)}/>}
         {tab === "profile" && showEditProfile && (
           <ProfileForm
@@ -397,7 +795,7 @@ export default function Networking() {
         )}
         {tab === "admin" && !me?.isAdmin && (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
-            <div style={{ fontSize: 56, marginBottom: 12 }}>🔒</div>
+            <div style={{ marginBottom: 12, display: "flex", justifyContent: "center" }}><Lock size={56} /></div>
             <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, fontSize: 20, color: S.text }}>Acceso restringido</h3>
             <p style={{ fontSize: 14, color: S.textSec }}>No tienes permisos para acceder a esta seccion</p>
           </div>

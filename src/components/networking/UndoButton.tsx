@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { useState } from "react";
 import { S } from "./styles";
+import { Undo2 } from "lucide-react";
 
 export default function UndoButton({ canUndo, onUndo }) {
   const [undoing, setUndoing] = useState(false);
@@ -36,7 +37,7 @@ export default function UndoButton({ canUndo, onUndo }) {
         transition: "all 0.2s"
       }}
     >
-      <span>↩️</span>
+      <Undo2 size={14}/>
       {undoing ? "Deshaciendo..." : "Deshacer ultimo swipe"}
     </button>
   );

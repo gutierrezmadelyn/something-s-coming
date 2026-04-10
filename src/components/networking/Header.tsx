@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { S } from "./styles";
-import { StreakChip, XPChip } from "./ui";
+import { LogOut } from "lucide-react";
 
 export default function Header({ me, selectedCohort, onToggleCohortPicker, onLogout }) {
   return (
@@ -11,13 +11,9 @@ export default function Header({ me, selectedCohort, onToggleCohortPicker, onLog
           {selectedCohort?.icon} {selectedCohort?.name || "Todas las cohortes"} ▾
         </button>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-        <StreakChip streak={me?.streak || 0}/>
-        <XPChip xp={me?.xp || 0}/>
-        <button onClick={onLogout} style={{ padding: "6px 12px", borderRadius: "8px", background: S.cardLight, border: "none", color: S.textSec, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>
-          Salir
-        </button>
-      </div>
+      <button onClick={onLogout} style={{ padding: "6px 12px", borderRadius: "8px", background: S.cardLight, border: `1px solid ${S.border}`, color: S.textSec, fontSize: "11px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: "5px" }}>
+        <LogOut size={12}/> Salir
+      </button>
     </div>
   );
 }
