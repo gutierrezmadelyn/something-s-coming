@@ -185,28 +185,28 @@ export default function ProfileCard({ profile, currentUser, onLeft, onRight, get
             }}>"{profile.pitch}"</p>
           </div>
 
-          {/* Expertise */}
+          {/* Ofrece */}
           <div style={{ marginBottom: "10px" }}>
-            <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: S.textTer, margin: "0 0 5px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Domina</p>
-            <div style={{ display: "flex", flexWrap: "wrap" }}>{profile.expertise.map(e => <Tag key={e} bg={S.blueBg} color={S.blue}>{e}</Tag>)}</div>
+            <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: S.textTer, margin: "0 0 5px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Ofrece</p>
+            <div style={{ display: "flex", flexWrap: "wrap" }}>{profile.offers.map(o => <Tag key={o} bg={S.greenBg} color={S.green}>{o}</Tag>)}</div>
           </div>
 
-          {/* Wants to learn */}
+          {/* Busca */}
           <div style={{ marginBottom: "6px" }}>
-            <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: S.textTer, margin: "0 0 5px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Quiere aprender</p>
-            <div style={{ display: "flex", flexWrap: "wrap" }}>{(Array.isArray(profile.wantsToLearn) ? profile.wantsToLearn : [profile.wantsToLearn]).filter(Boolean).map(w => <Tag key={w} bg={S.yellowBg} color={S.yellowText}>{w}</Tag>)}</div>
+            <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: S.textTer, margin: "0 0 5px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Busca</p>
+            <div style={{ display: "flex", flexWrap: "wrap" }}>{profile.seeks.map(s => <Tag key={s} bg={S.redBg} color={S.red}>{s}</Tag>)}</div>
           </div>
 
           {/* Expandable */}
           {expanded && (
             <div style={{ marginTop: "10px" }}>
               <div style={{ marginBottom: "10px" }}>
-                <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: S.textTer, margin: "0 0 5px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Ofrece</p>
-                <div style={{ display: "flex", flexWrap: "wrap" }}>{profile.offers.map(o => <Tag key={o} bg={S.greenBg} color={S.green}>{o}</Tag>)}</div>
+                <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: S.textTer, margin: "0 0 5px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Domina</p>
+                <div style={{ display: "flex", flexWrap: "wrap" }}>{profile.expertise.map(e => <Tag key={e} bg={S.blueBg} color={S.blue}>{e}</Tag>)}</div>
               </div>
               <div style={{ marginBottom: "10px" }}>
-                <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: S.textTer, margin: "0 0 5px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Busca</p>
-                <div style={{ display: "flex", flexWrap: "wrap" }}>{profile.seeks.map(s => <Tag key={s} bg={S.redBg} color={S.red}>{s}</Tag>)}</div>
+                <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: S.textTer, margin: "0 0 5px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Quiere aprender</p>
+                <div style={{ display: "flex", flexWrap: "wrap" }}>{(Array.isArray(profile.wantsToLearn) ? profile.wantsToLearn : [profile.wantsToLearn]).filter(Boolean).map(w => <Tag key={w} bg={S.yellowBg} color={S.yellowText}>{w}</Tag>)}</div>
               </div>
               {profile.sectors?.length > 0 && (
                 <div style={{ marginBottom: "6px" }}>

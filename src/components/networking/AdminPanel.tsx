@@ -20,6 +20,8 @@ export default function AdminPanel({
   onRemoveMemberFromCohort,
   selectedCohortId,
   onRefreshProfiles,
+  onDeleteUser,
+  onChangeCohortFilter,
 }) {
   const [tab, setTab] = useState("alerts");
   const [showCohortModal, setShowCohortModal] = useState(false);
@@ -40,6 +42,7 @@ export default function AdminPanel({
   const SYSTEM_FIELDS = [
     { key: "nombre", label: "Nombre", required: true },
     { key: "email", label: "Email", required: true },
+    { key: "password", label: "Contraseña", required: true },
     { key: "pais", label: "Pais", required: false },
     { key: "role", label: "Tipo de organizacion", required: false },
     { key: "work_type", label: "Tipo de trabajo", required: false },
@@ -50,6 +53,7 @@ export default function AdminPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const [viewMode, setViewMode] = useState("cohort"); // "cohort" | "all"
   const [filterCountry, setFilterCountry] = useState("");
+  const [filterCohortId, setFilterCohortId] = useState(selectedCohortId || "");
   const [assigningCohort, setAssigningCohort] = useState(null); // { profileId, show }
 
   // Determine which profiles to show
@@ -66,11 +70,11 @@ export default function AdminPanel({
         p.role?.toLowerCase().includes(q)
       );
     }
-    if (filterCountry) {
+    if (viewMode === "all" && filterCountry) {
       result = result.filter(p => p.country === filterCountry);
     }
     return result;
-  }, [displayProfiles, searchQuery, filterCountry]);
+  }, [displayProfiles, searchQuery, filterCountry, viewMode]);
 
   // Get unique countries for filter
   const countries = useMemo(() => {
@@ -87,7 +91,13 @@ export default function AdminPanel({
   const total = noLogin.length + noSwipe.length + noMatch.length + noConvo.length;
 
   const expertCount = {}; allProfiles.forEach(p => (p.expertise || []).forEach(e => { expertCount[e] = (expertCount[e] || 0) + 1; }));
+  const wantsToLearnCount = {}; allProfiles.forEach(p => {
+    const wtl = Array.isArray(p.wantsToLearn) ? p.wantsToLearn : (p.wants_to_learn ? (Array.isArray(p.wants_to_learn) ? p.wants_to_learn : [p.wants_to_learn]) : []);
+    wtl.filter(Boolean).forEach(w => { wantsToLearnCount[w] = (wantsToLearnCount[w] || 0) + 1; });
+  });
+  const offersCount = {}; allProfiles.forEach(p => (p.offers || []).forEach(o => { offersCount[o] = (offersCount[o] || 0) + 1; }));
   const seekCount = {}; allProfiles.forEach(p => (p.seeks || []).forEach(s => { seekCount[s] = (seekCount[s] || 0) + 1; }));
+  const sectorCount = {}; allProfiles.forEach(p => (p.sectors || []).forEach(s => { sectorCount[s] = (sectorCount[s] || 0) + 1; }));
 
   const AlertCard = ({ icon, title, items, color, bgColor, onAction }) => {
     if (!items.length) return null;
@@ -206,8 +216,8 @@ export default function AdminPanel({
 
   // Apply mapping and prepare final data
   const applyMapping = () => {
-    if (!fieldMapping.nombre || !fieldMapping.email) {
-      setImportError("Debes mapear al menos Nombre y Email");
+    if (!fieldMapping.nombre || !fieldMapping.email || !fieldMapping.password) {
+      setImportError("Debes mapear al menos Nombre, Email y Contraseña");
       return;
     }
 
@@ -232,11 +242,13 @@ export default function AdminPanel({
   };
 
   const handleAssignCohort = async (profileId, cohortId) => {
-    if (!onAddMemberToCohort) return;
+    if (!onAddMemberToCohort) { alert("Funcion no disponible"); return; }
     const success = await onAddMemberToCohort(cohortId, profileId);
     if (success) {
       setAssigningCohort(null);
-      if (onRefreshProfiles) onRefreshProfiles();
+      if (onRefreshProfiles) await onRefreshProfiles();
+    } else {
+      alert("No se pudo agregar a la cohorte. Revisa la consola para mas detalles.");
     }
   };
 
@@ -292,12 +304,24 @@ export default function AdminPanel({
       {tab === "stats" && (
         <div>
           <div style={{ background: S.card, borderRadius: "16px", padding: "18px", border: `1px solid ${S.border}`, marginBottom: "12px" }}>
-            <h4 style={{ color: S.textSec, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 12px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Tematicas dominadas</h4>
+            <h4 style={{ color: S.textSec, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 12px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Lo que ofrecen</h4>
+            <Bar entries={Object.entries(offersCount)} max={allProfiles.length} color={S.green}/>
+          </div>
+          <div style={{ background: S.card, borderRadius: "16px", padding: "18px", border: `1px solid ${S.border}`, marginBottom: "12px" }}>
+            <h4 style={{ color: S.textSec, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 12px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Lo que buscan</h4>
+            <Bar entries={Object.entries(seekCount)} max={allProfiles.length} color={S.red}/>
+          </div>
+          <div style={{ background: S.card, borderRadius: "16px", padding: "18px", border: `1px solid ${S.border}`, marginBottom: "12px" }}>
+            <h4 style={{ color: S.textSec, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 12px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Tematicas que dominan</h4>
             <Bar entries={Object.entries(expertCount)} max={allProfiles.length} color={S.blue}/>
           </div>
+          <div style={{ background: S.card, borderRadius: "16px", padding: "18px", border: `1px solid ${S.border}`, marginBottom: "12px" }}>
+            <h4 style={{ color: S.textSec, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 12px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Quieren aprender</h4>
+            <Bar entries={Object.entries(wantsToLearnCount)} max={allProfiles.length} color="#FFC800"/>
+          </div>
           <div style={{ background: S.card, borderRadius: "16px", padding: "18px", border: `1px solid ${S.border}` }}>
-            <h4 style={{ color: S.textSec, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 12px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Lo que mas buscan</h4>
-            <Bar entries={Object.entries(seekCount)} max={allProfiles.length} color={S.red}/>
+            <h4 style={{ color: S.textSec, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 12px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Sectores</h4>
+            <Bar entries={Object.entries(sectorCount)} max={allProfiles.length} color={S.purple}/>
           </div>
         </div>
       )}
@@ -324,12 +348,19 @@ export default function AdminPanel({
               placeholder="Buscar por nombre o email..."
               style={{ flex: 1, padding: "10px 14px", borderRadius: "10px", border: `1.5px solid ${S.border}`, fontSize: "13px", color: S.text, outline: "none", fontFamily: "'DM Sans', sans-serif" }}
             />
-            {countries.length > 1 && (
+            {viewMode === "cohort" && cohorts.length > 0 ? (
+              <select value={filterCohortId || selectedCohortId || ""} onChange={e => {
+                setFilterCohortId(e.target.value);
+                if (onChangeCohortFilter) onChangeCohortFilter(e.target.value);
+              }} style={{ padding: "10px 12px", borderRadius: "10px", border: `1.5px solid ${S.border}`, fontSize: "12px", color: S.text, background: S.card, cursor: "pointer" }}>
+                {cohorts.map(c => <option key={c.id} value={c.id}>{c.icon || "📋"} {c.name}</option>)}
+              </select>
+            ) : countries.length > 1 ? (
               <select value={filterCountry} onChange={e => setFilterCountry(e.target.value)} style={{ padding: "10px 12px", borderRadius: "10px", border: `1.5px solid ${S.border}`, fontSize: "12px", color: S.text, background: S.card, cursor: "pointer" }}>
                 <option value="">Todos los paises</option>
                 {countries.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
-            )}
+            ) : null}
           </div>
 
           <p style={{ fontSize: "11px", color: S.textTer, marginBottom: "8px" }}>{filteredProfiles.length} resultados</p>
@@ -352,7 +383,7 @@ export default function AdminPanel({
                 {/* Assign to cohort button */}
                 {viewMode === "all" && onAddMemberToCohort && (
                   <div style={{ position: "relative" }}>
-                    <button onClick={() => setAssigningCohort(assigningCohort === p.id ? null : p.id)} style={{ padding: "5px 10px", borderRadius: "8px", background: S.greenBg, border: `1px solid ${S.green}30`, color: S.green, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>+ Cohorte</button>
+                    <button onClick={() => setAssigningCohort(assigningCohort === p.id ? null : p.id)} title="Agregar a cohorte" style={{ padding: "5px 10px", borderRadius: "8px", background: S.greenBg, border: `1px solid ${S.green}30`, color: S.green, fontSize: "14px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>+</button>
                     {assigningCohort === p.id && (
                       <div style={{ position: "absolute", right: 0, top: "100%", marginTop: "4px", background: S.card, borderRadius: "12px", border: `1px solid ${S.border}`, boxShadow: "0 4px 12px rgba(0,0,0,0.15)", padding: "8px", zIndex: 50, minWidth: "180px" }}>
                         {cohorts.map(c => (
@@ -369,9 +400,15 @@ export default function AdminPanel({
                 )}
                 {/* Remove from cohort */}
                 {viewMode === "cohort" && onRemoveMemberFromCohort && selectedCohortId && p.id !== currentUserId && (
-                  <button onClick={() => handleRemoveFromCohort(p.id)} title="Quitar de cohorte" style={{ padding: "5px 10px", borderRadius: "8px", background: S.redBg, border: `1px solid ${S.red}30`, color: S.red, fontSize: "11px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center" }}><Trash2 size={11}/></button>
+                  <button onClick={() => handleRemoveFromCohort(p.id)} title="Quitar de cohorte" style={{ padding: "5px 10px", borderRadius: "8px", background: "#FFF1F2", border: "1px solid #E11D4830", color: S.red, fontSize: "14px", fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>−</button>
                 )}
-                <button onClick={() => onManualMatch(p)} style={{ padding: "5px 10px", borderRadius: "8px", background: S.blueBg, border: `1px solid ${S.blue}30`, color: S.blue, fontSize: "11px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center" }}><Target size={11}/></button>
+                {onDeleteUser && p.id !== currentUserId && (
+                  <button onClick={async () => {
+                    if (confirm(`Eliminar a "${p.name}" completamente? Se borraran todos sus datos, matches, mensajes y membresias. Esta accion no se puede deshacer.`)) {
+                      await onDeleteUser(p.id);
+                    }
+                  }} title="Eliminar usuario" style={{ padding: "5px 10px", borderRadius: "8px", background: S.redBg, border: `1px solid ${S.red}30`, color: S.red, fontSize: "11px", fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center" }}><Trash2 size={11}/></button>
+                )}
               </div>
             </div>
           ))}
@@ -514,6 +551,20 @@ export default function AdminPanel({
             {importStep === 1 && (
               <div>
                 <p style={{ fontSize: "13px", color: S.textSec, marginBottom: "12px" }}>Sube un archivo CSV con los datos de los usuarios. En el siguiente paso podras empatar las columnas.</p>
+                <div style={{ background: S.blueBg, border: `1px solid ${S.blue}20`, borderRadius: "12px", padding: "14px", marginBottom: "16px" }}>
+                  <p style={{ fontSize: "12px", fontWeight: 700, color: S.blue, margin: "0 0 6px" }}>📋 Columnas sugeridas</p>
+                  <p style={{ fontSize: "11px", color: S.textSec, margin: "0 0 8px", lineHeight: 1.5 }}>
+                    Nombre*, Email*, Contraseña*, Pais, Tipo de organizacion, Tipo de trabajo, Expertise, WhatsApp, LinkedIn
+                  </p>
+                  <a
+                    href="https://docs.google.com/spreadsheets/d/1skZ7Lgn93Co2PucQztf_R3B_ALhJfpXE2uXFLNKR7iE/edit?usp=sharing"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: "12px", color: S.blue, fontWeight: 600, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: "4px" }}
+                  >
+                    📥 Copiar plantilla de Google Sheets
+                  </a>
+                </div>
                 <input type="file" accept=".csv" onChange={handleFileImport} style={{ width: "100%", padding: "12px", borderRadius: "12px", border: `1.5px solid ${S.border}`, fontSize: "14px", boxSizing: "border-box" }} />
               </div>
             )}

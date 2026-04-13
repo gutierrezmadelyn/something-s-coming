@@ -4,7 +4,7 @@ import { Target, MessageCircle } from "lucide-react";
 import { S } from "./styles";
 import { Btn } from "./ui";
 
-export default function MatchAnimation({ profile, icebreaker, onClose }) {
+export default function MatchAnimation({ profile, icebreaker, onClose, onSendMessage }) {
   const [show, setShow] = useState(false);
   useEffect(() => { setTimeout(() => setShow(true), 50); }, []);
   return (
@@ -19,7 +19,7 @@ export default function MatchAnimation({ profile, icebreaker, onClose }) {
         </div>
         <div style={{ display: "flex", gap: "8px", justifyContent: "center" }}>
           <Btn onClick={onClose} variant="outline">Seguir explorando</Btn>
-          <Btn onClick={onClose} variant="primary">Enviar mensaje</Btn>
+          <Btn onClick={onSendMessage || onClose} variant="primary">Enviar mensaje</Btn>
         </div>
       </div>
     </div>

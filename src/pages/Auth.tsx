@@ -433,26 +433,6 @@ export default function Auth() {
             </form>
 
 
-            {/* Test Account Info */}
-            {isLogin && (
-              <div style={{
-                marginTop: "24px",
-                padding: "12px 16px",
-                background: S.blueBg,
-                borderRadius: "12px",
-                border: `1px solid ${S.blue}20`
-              }}>
-                <p style={{
-                  margin: 0,
-                  fontSize: "11px",
-                  color: S.blue,
-                  fontWeight: 600,
-                  textAlign: "center"
-                }}>
-                  Cuenta de prueba: test@negoworking.com / Test123456!
-                </p>
-              </div>
-            )}
           </>
         )}
       </div>

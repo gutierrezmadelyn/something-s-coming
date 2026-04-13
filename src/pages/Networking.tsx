@@ -45,13 +45,13 @@ export default function Networking() {
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
-    sectors: [],
-    expertise: [],
-    city: "",
+    offers: [],
+    seeks: [],
+    country: "",
   });
 
-  const { profiles: dbProfiles, loading: profilesLoading, recordSwipe, getCompatibility, undoLastSwipe, canUndo } = useProfiles({
-    currentUserId, cohortId: selectedCohortId || undefined, excludeSwiped: true,  // FIXED: Was false, causing already-swiped profiles to show
+  const { profiles: dbProfiles, loading: profilesLoading, recordSwipe, getCompatibility, undoLastSwipe, canUndo, refetch: refetchCohortProfiles } = useProfiles({
+    currentUserId, cohortId: selectedCohortId || undefined, excludeSwiped: false,
   });
   const { matches: dbMatches, startConversation, deleteMatch, createManualMatch, markAsRead } = useMatches(currentUserId);
 
@@ -63,6 +63,28 @@ export default function Networking() {
 
   const me = useMemo(() => authProfile ? convertProfileToLegacy(authProfile) : null, [authProfile]);
   const cohortProfiles = useMemo(() => dbProfiles.map(convertProfileToLegacy).filter(Boolean), [dbProfiles]);
+  // Admin view: all cohort members (including swiped + current user)
+  const [adminCohortProfiles, setAdminCohortProfiles] = useState([]);
+  const [adminCohortId, setAdminCohortId] = useState(null);
+  const activeAdminCohortId = adminCohortId || selectedCohortId;
+
+  const fetchAdminCohortProfiles = useCallback(async (cohortId) => {
+    if (!cohortId) return;
+    const { data: memberIds } = await supabase
+      .from('cohort_members')
+      .select('profile_id')
+      .eq('cohort_id', cohortId);
+    if (memberIds && memberIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('id', memberIds.map(m => m.profile_id));
+      setAdminCohortProfiles((profiles || []).map(convertProfileToLegacy).filter(Boolean));
+    } else {
+      setAdminCohortProfiles([]);
+    }
+  }, []);
+  useEffect(() => { fetchAdminCohortProfiles(activeAdminCohortId); }, [activeAdminCohortId, fetchAdminCohortProfiles]);
 
   // Profiles for map - includes cohort + matched profiles
   const mapProfiles = useMemo(() => {
@@ -226,30 +248,34 @@ export default function Networking() {
     if (authProfile && !authProfile.has_logged_in) setShowOnboarding(true);
   }, [authProfile]);
 
+  const cohortInitializedRef = useRef(false);
   useEffect(() => {
-    if (cohorts.length > 0 && !selectedCohortId) {
+    if (cohorts.length > 0 && !cohortInitializedRef.current) {
+      cohortInitializedRef.current = true;
       setSelectedCohortId(userCohorts[0] || cohorts[0]?.id || null);
     }
-  }, [cohorts, userCohorts, selectedCohortId]);
+  }, [cohorts, userCohorts]);
 
   const selectedCohort = cohorts.find(c => c.id === selectedCohortId);
 
   // Get unique filter options from profiles
+  const COUNTRY_LIST = [
+    "El Salvador", "Guatemala", "Honduras", "Costa Rica", "Nicaragua",
+    "Peru", "Mexico", "Venezuela", "Colombia", "Republica Dominicana",
+  ];
+
   const filterOptions = useMemo(() => {
-    const allSectors = new Set();
-    const allExpertise = new Set();
-    const allCities = new Set();
+    const allOffers = new Set();
+    const allSeeks = new Set();
 
     cohortProfiles.forEach(p => {
-      (p.sectors || []).forEach(s => allSectors.add(s));
-      (p.expertise || []).forEach(e => allExpertise.add(e));
-      if (p.city) allCities.add(p.city);
+      (p.offers || []).forEach(o => allOffers.add(o));
+      (p.seeks || []).forEach(s => allSeeks.add(s));
     });
 
     return {
-      sectors: Array.from(allSectors).sort(),
-      expertise: Array.from(allExpertise).sort(),
-      cities: Array.from(allCities).sort(),
+      offers: Array.from(allOffers).sort(),
+      seeks: Array.from(allSeeks).sort(),
     };
   }, [cohortProfiles]);
 
@@ -268,23 +294,23 @@ export default function Networking() {
       );
     }
 
-    // Apply sector filter
-    if (filters.sectors.length > 0) {
+    // Apply offers filter
+    if (filters.offers.length > 0) {
       filtered = filtered.filter(p =>
-        (p.sectors || []).some(s => filters.sectors.includes(s))
+        (p.offers || []).some(o => filters.offers.includes(o))
       );
     }
 
-    // Apply expertise filter
-    if (filters.expertise.length > 0) {
+    // Apply seeks filter
+    if (filters.seeks.length > 0) {
       filtered = filtered.filter(p =>
-        (p.expertise || []).some(e => filters.expertise.includes(e))
+        (p.seeks || []).some(s => filters.seeks.includes(s))
       );
     }
 
-    // Apply city filter
-    if (filters.city) {
-      filtered = filtered.filter(p => p.city === filters.city);
+    // Apply country filter
+    if (filters.country) {
+      filtered = filtered.filter(p => p.country === filters.country);
     }
 
     // Sort by compatibility
@@ -292,12 +318,12 @@ export default function Networking() {
   }, [cohortProfiles, currentUserId, me, searchTerm, filters]);
 
   // Check if any filters are active
-  const hasActiveFilters = searchTerm.trim() || filters.sectors.length > 0 || filters.expertise.length > 0 || filters.city;
+  const hasActiveFilters = searchTerm.trim() || filters.offers.length > 0 || filters.seeks.length > 0 || filters.country;
 
   // Clear all filters
   const clearFilters = useCallback(() => {
     setSearchTerm("");
-    setFilters({ sectors: [], expertise: [], city: "" });
+    setFilters({ offers: [], seeks: [], country: "" });
   }, []);
 
   // Circular index - wraps around when reaching the end
@@ -375,6 +401,47 @@ export default function Networking() {
     }
   };
 
+  const handleDeleteUser = async (userId) => {
+    try {
+      // Delete messages
+      await supabase.from('messages').delete().eq('sender_id', userId);
+
+      // Delete conversations for user's matches
+      const { data: userMatches } = await supabase
+        .from('matches')
+        .select('id')
+        .or(`user_id.eq.${userId},matched_user_id.eq.${userId}`);
+
+      if (userMatches && userMatches.length > 0) {
+        await supabase.from('conversations').delete().in('match_id', userMatches.map(m => m.id));
+      }
+
+      // Delete matches
+      await supabase.from('matches').delete().or(`user_id.eq.${userId},matched_user_id.eq.${userId}`);
+
+      // Delete swipes
+      await supabase.from('swipes').delete().or(`user_id.eq.${userId},swiped_user_id.eq.${userId}`);
+
+      // Delete cohort memberships
+      await supabase.from('cohort_members').delete().eq('profile_id', userId);
+
+      // Delete XP log
+      await supabase.from('xp_log').delete().eq('user_id', userId);
+
+      // Delete profile
+      await supabase.from('profiles').delete().eq('id', userId);
+
+      // Refresh profiles
+      if (refetchAllProfiles) refetchAllProfiles();
+      if (refetchCohortProfiles) refetchCohortProfiles();
+      fetchAdminCohortProfiles(activeAdminCohortId);
+
+      return { error: null };
+    } catch (err) {
+      return { error: err };
+    }
+  };
+
   const handlePrivacyChange = async (s) => {
     setPrivacySettings(s);
     await updateProfile({ show_location: s.showLocation, show_phone: s.showPhone });
@@ -430,6 +497,7 @@ export default function Networking() {
         const { data, error } = await supabase.rpc("admin_import_user", {
           p_email: email,
           p_name: user.nombre || "",
+          p_password: user.password || null,
           p_country: user.pais || user.country || null,
           p_city: user.ciudad || user.city || null,
           p_role: user.rol || user.role || user["tipo de organizacion"] || null,
@@ -560,7 +628,7 @@ export default function Networking() {
                     gap: "4px",
                   }}
                 >
-                  <Settings size={16} /> Filtros {hasActiveFilters && `(${filters.sectors.length + filters.expertise.length + (filters.city ? 1 : 0)})`}
+                  <Settings size={16} /> Filtros {hasActiveFilters && `(${filters.offers.length + filters.seeks.length + (filters.country ? 1 : 0)})`}
                 </button>
               </div>
 
@@ -582,12 +650,12 @@ export default function Networking() {
                     )}
                   </div>
 
-                  {/* City Filter */}
+                  {/* Country Filter */}
                   <div style={{ marginBottom: "12px" }}>
-                    <label style={{ fontSize: "12px", color: S.textSec, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", display: "block", marginBottom: "6px" }}>Ciudad</label>
+                    <label style={{ fontSize: "12px", color: S.textSec, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", display: "block", marginBottom: "6px" }}>Pais</label>
                     <select
-                      value={filters.city}
-                      onChange={(e) => { setFilters(f => ({ ...f, city: e.target.value })); setCurrentProfileIndex(0); }}
+                      value={filters.country}
+                      onChange={(e) => { setFilters(f => ({ ...f, country: e.target.value })); setCurrentProfileIndex(0); }}
                       style={{
                         width: "100%",
                         padding: "8px 12px",
@@ -599,31 +667,63 @@ export default function Networking() {
                         color: S.text,
                       }}
                     >
-                      <option value="">Todas las ciudades</option>
-                      {filterOptions.cities.map(c => <option key={c} value={c}>{c}</option>)}
+                      <option value="">Todos los paises</option>
+                      {COUNTRY_LIST.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
 
-                  {/* Sector Filter */}
+                  {/* Offers Filter */}
                   <div style={{ marginBottom: "12px" }}>
-                    <label style={{ fontSize: "12px", color: S.textSec, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", display: "block", marginBottom: "6px" }}>Sectores</label>
+                    <label style={{ fontSize: "12px", color: S.textSec, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", display: "block", marginBottom: "6px" }}>Ofrece</label>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                      {filterOptions.sectors.slice(0, 12).map(s => (
+                      {filterOptions.offers.map(o => (
                         <button
-                          key={s}
+                          key={o}
                           onClick={() => {
                             setFilters(f => ({
                               ...f,
-                              sectors: f.sectors.includes(s) ? f.sectors.filter(x => x !== s) : [...f.sectors, s]
+                              offers: f.offers.includes(o) ? f.offers.filter(x => x !== o) : [...f.offers, o]
                             }));
                             setCurrentProfileIndex(0);
                           }}
                           style={{
                             padding: "5px 10px",
                             borderRadius: "8px",
-                            border: `1px solid ${filters.sectors.includes(s) ? S.blue : S.border}`,
-                            background: filters.sectors.includes(s) ? S.blueBg : S.card,
-                            color: filters.sectors.includes(s) ? S.blue : S.textSec,
+                            border: `1px solid ${filters.offers.includes(o) ? S.blue : S.border}`,
+                            background: filters.offers.includes(o) ? S.blueBg : S.card,
+                            color: filters.offers.includes(o) ? S.blue : S.textSec,
+                            fontSize: "12px",
+                            cursor: "pointer",
+                            fontFamily: "'DM Sans', sans-serif",
+                            fontWeight: 500,
+                          }}
+                        >
+                          {o}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Seeks Filter */}
+                  <div>
+                    <label style={{ fontSize: "12px", color: S.textSec, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", display: "block", marginBottom: "6px" }}>Busca</label>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                      {filterOptions.seeks.map(s => (
+                        <button
+                          key={s}
+                          onClick={() => {
+                            setFilters(f => ({
+                              ...f,
+                              seeks: f.seeks.includes(s) ? f.seeks.filter(x => x !== s) : [...f.seeks, s]
+                            }));
+                            setCurrentProfileIndex(0);
+                          }}
+                          style={{
+                            padding: "5px 10px",
+                            borderRadius: "8px",
+                            border: `1px solid ${filters.seeks.includes(s) ? S.green : S.border}`,
+                            background: filters.seeks.includes(s) ? S.greenBg : S.card,
+                            color: filters.seeks.includes(s) ? S.green : S.textSec,
                             fontSize: "12px",
                             cursor: "pointer",
                             fontFamily: "'DM Sans', sans-serif",
@@ -631,38 +731,6 @@ export default function Networking() {
                           }}
                         >
                           {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Expertise Filter */}
-                  <div>
-                    <label style={{ fontSize: "12px", color: S.textSec, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", display: "block", marginBottom: "6px" }}>Experticia</label>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                      {filterOptions.expertise.slice(0, 12).map(e => (
-                        <button
-                          key={e}
-                          onClick={() => {
-                            setFilters(f => ({
-                              ...f,
-                              expertise: f.expertise.includes(e) ? f.expertise.filter(x => x !== e) : [...f.expertise, e]
-                            }));
-                            setCurrentProfileIndex(0);
-                          }}
-                          style={{
-                            padding: "5px 10px",
-                            borderRadius: "8px",
-                            border: `1px solid ${filters.expertise.includes(e) ? S.green : S.border}`,
-                            background: filters.expertise.includes(e) ? S.greenBg : S.card,
-                            color: filters.expertise.includes(e) ? S.green : S.textSec,
-                            fontSize: "12px",
-                            cursor: "pointer",
-                            fontFamily: "'DM Sans', sans-serif",
-                            fontWeight: 500,
-                          }}
-                        >
-                          {e}
                         </button>
                       ))}
                     </div>
@@ -707,9 +775,13 @@ export default function Networking() {
               </>
             ) : (
               <div style={{ textAlign: "center", padding: "60px 20px" }}>
-                <div style={{ fontSize: 56, marginBottom: 12 }}>👥</div>
-                <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, fontSize: 20, color: S.text }}>No hay perfiles</h3>
-                <p style={{ fontSize: 14, color: S.textSec }}>No hay miembros en esta cohorte aún</p>
+                <div style={{ fontSize: 56, marginBottom: 12 }}>{cohortProfiles.length > 0 ? "✅" : "👥"}</div>
+                <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, fontSize: 20, color: S.text }}>
+                  {cohortProfiles.length > 0 ? "Ya revisaste todos los perfiles" : "No hay perfiles"}
+                </h3>
+                <p style={{ fontSize: 14, color: S.textSec }}>
+                  {cohortProfiles.length > 0 ? "Revisa tus conexiones o usa los filtros para explorar de nuevo" : "No hay miembros en esta cohorte aun"}
+                </p>
               </div>
             )}
           </div>
@@ -755,7 +827,7 @@ export default function Networking() {
         )}
         {tab === "admin" && me?.isAdmin && (
           <AdminPanel
-            allProfiles={cohortProfiles}
+            allProfiles={adminCohortProfiles}
             matches={localMatches}
             onManualMatch={manualMatch}
             cohortName={selectedCohort?.name}
@@ -789,8 +861,10 @@ export default function Networking() {
             allSystemProfiles={allSystemProfiles}
             onAddMemberToCohort={addMemberToCohort}
             onRemoveMemberFromCohort={removeMemberFromCohort}
-            selectedCohortId={selectedCohortId}
-            onRefreshProfiles={refetchAllProfiles}
+            selectedCohortId={activeAdminCohortId}
+            onRefreshProfiles={() => { refetchAllProfiles(); refetchCohortProfiles(); fetchAdminCohortProfiles(activeAdminCohortId); }}
+            onDeleteUser={handleDeleteUser}
+            onChangeCohortFilter={setAdminCohortId}
           />
         )}
         {tab === "admin" && !me?.isAdmin && (
@@ -803,7 +877,11 @@ export default function Networking() {
       </div>
 
       {tab !== "chat" && !showEditProfile && <BottomNav tabs={tabs} activeTab={tab} onTabChange={(id) => { setTab(id); setShowEditProfile(false); }} />}
-      {showMatch && <MatchAnimation profile={showMatch.profile} icebreaker={showMatch.icebreaker} onClose={() => setShowMatch(null)}/>}
+      {showMatch && <MatchAnimation profile={showMatch.profile} icebreaker={showMatch.icebreaker} onClose={() => setShowMatch(null)} onSendMessage={() => {
+        const match = localMatches.find(m => m.id === showMatch.profile.id);
+        if (match) openChat(match);
+        setShowMatch(null);
+      }}/>}
     </div>
   );
 }

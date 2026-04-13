@@ -43,6 +43,8 @@ const COUNTRY_CODES: Record<string, string> = {
   "El Salvador": "+503",
   "Guatemala": "+502",
   "Honduras": "+504",
+  "Costa Rica": "+506",
+  "Nicaragua": "+505",
   "Peru": "+51",
   "Mexico": "+52",
   "Venezuela": "+58",
@@ -52,34 +54,44 @@ const COUNTRY_CODES: Record<string, string> = {
 
 const OFFERS_OPTIONS = [
   "Metodologias probadas",
-  "Experiencia sectorial",
-  "Mentoria",
-  "Alianza para proyectos",
-  "Contactos y red",
+  "Experiencia sectorial especifica",
+  "Mentoria y acompanamiento",
+  "Alianza para proyectos conjuntos",
+  "Contactos y red de clientes",
+  "Experiencia en convocatorias/cooperacion",
+  "Medicion de impacto",
+  "Casos de exito replicables",
 ];
 
 const SEEKS_OPTIONS = [
-  "Nuevas metodologias",
   "Aliados complementarios",
-  "Proyectos conjuntos",
-  "Ampliar red",
-  "Experiencia en otra tematica",
+  "Nuevas metodologias o enfoques",
+  "Experiencia en tematica que no domino",
+  "Ampliar mi red en un sector",
+  "Oportunidades de proyectos conjuntos",
+  "Informacion sobre convocatorias",
+  "Mentoria de alguien con mas experiencia",
+  "Clientes o referidos",
 ];
 
 const SECTOR_OPTIONS = [
-  "Agroindustria",
-  "Comercio",
-  "Construccion",
+  "Agroindustria y alimentos",
+  "Comercio y retail",
+  "E-commerce y marketplace",
+  "Construccion e inmobiliario",
+  "Economia creativa y cultura",
   "Educacion",
-  "Energia",
-  "Finanzas",
+  "Energia y sostenibilidad",
+  "Finanzas y banca",
+  "Logistica y transporte",
   "Manufactura",
-  "OSC",
-  "PyMEs",
-  "Salud",
-  "Servicios profesionales",
-  "Tecnologia",
-  "Turismo",
+  "Salud y bienestar",
+  "Sociedad civil / ONGs",
+  "Cooperacion internacional",
+  "Sector publico / gobierno",
+  "PyMEs en general",
+  "Tecnologia e innovacion",
+  "Turismo y hospitalidad",
 ];
 
 const ORGANIZATION_TYPE_OPTIONS = [
@@ -103,9 +115,10 @@ const COUNTRY_OPTIONS = [
   "El Salvador",
   "Guatemala",
   "Honduras",
+  "Costa Rica",
+  "Nicaragua",
   "Peru",
   "Mexico",
-  "México",
   "Venezuela",
   "Colombia",
   "Republica Dominicana",
@@ -433,11 +446,11 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         organization: profile.organization || "",
         organization_description: profile.organization_description || "",
         pitch: profile.pitch || "",
-        expertise: profile.expertise || [],
-        wants_to_learn: Array.isArray(profile.wants_to_learn) ? profile.wants_to_learn : (profile.wants_to_learn ? [profile.wants_to_learn] : []),
-        sectors: profile.sectors || [],
-        offers: profile.offers || [],
-        seeks: profile.seeks || [],
+        expertise: (profile.expertise || []).filter(v => EXPERTISE_OPTIONS.includes(v)),
+        wants_to_learn: (Array.isArray(profile.wants_to_learn) ? profile.wants_to_learn : (profile.wants_to_learn ? [profile.wants_to_learn] : [])).filter(v => EXPERTISE_OPTIONS.includes(v)),
+        sectors: (profile.sectors || []).filter(v => SECTOR_OPTIONS.includes(v)),
+        offers: (profile.offers || []).filter(v => OFFERS_OPTIONS.includes(v)),
+        seeks: (profile.seeks || []).filter(v => SEEKS_OPTIONS.includes(v)),
         whatsapp: profile.whatsapp || "",
         linkedin: profile.linkedin || "",
         avatar_color: profile.avatar_color || AVATAR_COLORS[0],
@@ -447,14 +460,23 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
     }
   }, [profile]);
 
+  const MAX_SELECTIONS: Record<string, number> = {
+    expertise: 3,
+    wants_to_learn: 3,
+    offers: 4,
+    seeks: 3,
+    sectors: 5,
+  };
+
   const handleToggleArray = (field: "expertise" | "offers" | "seeks" | "wants_to_learn" | "sectors", value: string) => {
     setFormData(prev => {
       const current = prev[field];
       if (current.includes(value)) {
         return { ...prev, [field]: current.filter(v => v !== value) };
-      } else {
+      } else if (current.length < (MAX_SELECTIONS[field] || Infinity)) {
         return { ...prev, [field]: [...current, value] };
       }
+      return prev;
     });
   };
 
@@ -603,15 +625,15 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
           onChange={(v) => setFormData(prev => ({
             ...prev,
             country: v,
-            city: "" // Limpiar ciudad cuando cambia el país
+            city: prev.city // Mantener ciudad al cambiar país
           }))}
           options={COUNTRY_OPTIONS}
         />
-        <Select
+        <Input
           label="Ciudad"
           value={formData.city}
           onChange={(v) => setFormData(prev => ({ ...prev, city: v }))}
-          options={formData.country ? CITIES_BY_COUNTRY[formData.country] || [] : []}
+          placeholder="Escribe tu ciudad"
         />
       </div>
 
@@ -690,7 +712,7 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
       />
 
       <MultiSelect
-        label="Tu expertise (selecciona al menos 1)"
+        label="Tu expertise (max 3)"
         options={EXPERTISE_OPTIONS}
         selected={formData.expertise}
         onChange={(v) => handleToggleArray("expertise", v)}
@@ -700,29 +722,25 @@ export default function ProfileForm({ profile, onSave, onCancel, isOnboarding = 
         label="Quiero aprender sobre (max 3)"
         options={EXPERTISE_OPTIONS}
         selected={formData.wants_to_learn}
-        onChange={(v) => {
-          if (formData.wants_to_learn.includes(v) || formData.wants_to_learn.length < 3) {
-            handleToggleArray("wants_to_learn", v);
-          }
-        }}
+        onChange={(v) => handleToggleArray("wants_to_learn", v)}
       />
 
       <MultiSelect
-        label="Lo que ofrezco"
+        label="Lo que ofrezco (max 4)"
         options={OFFERS_OPTIONS}
         selected={formData.offers}
         onChange={(v) => handleToggleArray("offers", v)}
       />
 
       <MultiSelect
-        label="Lo que busco"
+        label="Lo que busco (max 3)"
         options={SEEKS_OPTIONS}
         selected={formData.seeks}
         onChange={(v) => handleToggleArray("seeks", v)}
       />
 
       <MultiSelect
-        label="Sectores en los que trabajas"
+        label="Sectores en los que trabajas (max 5)"
         options={SECTOR_OPTIONS}
         selected={formData.sectors}
         onChange={(v) => handleToggleArray("sectors", v)}
