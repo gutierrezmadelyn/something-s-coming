@@ -864,7 +864,7 @@ export default function Networking() {
             selectedCohortId={activeAdminCohortId}
             onRefreshProfiles={() => { refetchAllProfiles(); refetchCohortProfiles(); fetchAdminCohortProfiles(activeAdminCohortId); }}
             onDeleteUser={handleDeleteUser}
-            onChangeCohortFilter={setAdminCohortId}
+            onChangeCohortFilter={(cohortId) => { setAdminCohortId(cohortId); setSelectedCohortId(cohortId); }}
           />
         )}
         {tab === "admin" && !me?.isAdmin && (

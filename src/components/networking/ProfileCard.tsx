@@ -188,13 +188,13 @@ export default function ProfileCard({ profile, currentUser, onLeft, onRight, get
           {/* Ofrece */}
           <div style={{ marginBottom: "10px" }}>
             <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: S.textTer, margin: "0 0 5px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Ofrece</p>
-            <div style={{ display: "flex", flexWrap: "wrap" }}>{profile.offers.map(o => <Tag key={o} bg={S.greenBg} color={S.green}>{o}</Tag>)}</div>
+            <div style={{ display: "flex", flexWrap: "wrap" }}>{(profile.offers || []).map(o => <Tag key={o} bg={S.greenBg} color={S.green}>{o}</Tag>)}</div>
           </div>
 
           {/* Busca */}
           <div style={{ marginBottom: "6px" }}>
             <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: S.textTer, margin: "0 0 5px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Busca</p>
-            <div style={{ display: "flex", flexWrap: "wrap" }}>{profile.seeks.map(s => <Tag key={s} bg={S.redBg} color={S.red}>{s}</Tag>)}</div>
+            <div style={{ display: "flex", flexWrap: "wrap" }}>{(profile.seeks || []).map(s => <Tag key={s} bg={S.redBg} color={S.red}>{s}</Tag>)}</div>
           </div>
 
           {/* Expandable */}
@@ -202,7 +202,7 @@ export default function ProfileCard({ profile, currentUser, onLeft, onRight, get
             <div style={{ marginTop: "10px" }}>
               <div style={{ marginBottom: "10px" }}>
                 <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: S.textTer, margin: "0 0 5px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Domina</p>
-                <div style={{ display: "flex", flexWrap: "wrap" }}>{profile.expertise.map(e => <Tag key={e} bg={S.blueBg} color={S.blue}>{e}</Tag>)}</div>
+                <div style={{ display: "flex", flexWrap: "wrap" }}>{(profile.expertise || []).map(e => <Tag key={e} bg={S.blueBg} color={S.blue}>{e}</Tag>)}</div>
               </div>
               <div style={{ marginBottom: "10px" }}>
                 <p style={{ fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", color: S.textTer, margin: "0 0 5px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Quiere aprender</p>

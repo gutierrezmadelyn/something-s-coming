@@ -129,20 +129,64 @@ export default function AdminPanel({
     </div>
   ));
 
-  const exportCSV = () => {
-    const headers = ["Nombre", "Email", "Pais", "Ciudad", "Rol", "Expertise", "Ofrece", "Busca", "Swipes", "Ha ingresado", "Cohorte"];
-    const rows = (viewMode === "all" ? allSystemProfiles : allProfiles).map(p => [
-      p.name, p.email || "", p.country || "", p.city || "", p.role || "",
-      (p.expertise || []).join("; "), (p.offers || []).join("; "), (p.seeks || []).join("; "),
-      p.swipeCount || 0,
-      p.hasLoggedIn ? "Si" : "No", cohortName || ""
-    ]);
-    const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v}"`).join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const downloadCSV = (filename, csvContent) => {
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `participantes_${new Date().toISOString().split("T")[0]}.csv`;
+    link.download = filename;
     link.click();
+  };
+
+  const exportCSV = () => {
+    const headers = ["Nombre", "Email", "Pais", "Ciudad", "Rol", "Expertise", "Ofrece", "Busca", "Sectores", "Swipes", "Ha ingresado"];
+    const profiles = viewMode === "all" ? allSystemProfiles : allProfiles;
+    const rows = profiles.map(p => [
+      p.name, p.email || "", p.country || "", p.city || "", p.role || "",
+      (p.expertise || []).join("; "), (p.offers || []).join("; "), (p.seeks || []).join("; "),
+      (p.sectors || []).join("; "), p.swipeCount || 0,
+      p.hasLoggedIn ? "Si" : "No"
+    ]);
+    const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v}"`).join(","))].join("\n");
+    const cohortLabel = cohortName ? cohortName.replace(/\s+/g, "_") : "todos";
+    downloadCSV(`participantes_${cohortLabel}_${new Date().toISOString().split("T")[0]}.csv`, csv);
+  };
+
+  const exportStats = () => {
+    const sections = [
+      { title: "RESUMEN", data: [
+        ["Perfiles", allProfiles.length],
+        ["Matches", matches.length],
+        ["Activos (han ingresado)", allProfiles.filter(p => p.hasLoggedIn).length],
+        ["No han ingresado", noLogin.length],
+        ["Sin swipes", noSwipe.length],
+        ["Sin matches", noMatch.length],
+      ]},
+      { title: "LO QUE OFRECEN", data: Object.entries(offersCount).sort((a,b) => b[1] - a[1]) },
+      { title: "LO QUE BUSCAN", data: Object.entries(seekCount).sort((a,b) => b[1] - a[1]) },
+      { title: "TEMATICAS QUE DOMINAN", data: Object.entries(expertCount).sort((a,b) => b[1] - a[1]) },
+      { title: "QUIEREN APRENDER", data: Object.entries(wantsToLearnCount).sort((a,b) => b[1] - a[1]) },
+      { title: "SECTORES", data: Object.entries(sectorCount).sort((a,b) => b[1] - a[1]) },
+    ];
+    const lines = [];
+    sections.forEach(s => {
+      lines.push(s.title);
+      s.data.forEach(([label, count]) => lines.push(`"${label}",${count}`));
+      lines.push("");
+    });
+    const cohortLabel = cohortName ? cohortName.replace(/\s+/g, "_") : "todos";
+    downloadCSV(`estadisticas_${cohortLabel}_${new Date().toISOString().split("T")[0]}.csv`, lines.join("\n"));
+  };
+
+  const exportAlerts = () => {
+    const headers = ["Tipo de Alerta", "Nombre", "Email"];
+    const rows = [];
+    noLogin.forEach(p => rows.push(["No ha ingresado", p.name, p.email || ""]));
+    noSwipe.forEach(p => rows.push(["Sin swipes", p.name, p.email || ""]));
+    noMatch.forEach(p => rows.push(["Sin matches", p.name, p.email || ""]));
+    noConvo.map(m => allProfiles.find(p => p.id === m.id)).filter(Boolean).forEach(p => rows.push(["Match sin conversacion", p.name, p.email || ""]));
+    const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v}"`).join(","))].join("\n");
+    const cohortLabel = cohortName ? cohortName.replace(/\s+/g, "_") : "todos";
+    downloadCSV(`alertas_${cohortLabel}_${new Date().toISOString().split("T")[0]}.csv`, csv);
   };
 
   const handleFileImport = (e) => {
@@ -190,11 +234,12 @@ export default function AdminPanel({
         // Auto-suggest mappings based on header names
         const autoMapping: Record<string, string> = {};
         headers.forEach(h => {
-          const hLower = h.toLowerCase();
-          if (hLower.includes("nombre")) autoMapping["nombre"] = h;
+          const hLower = h.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          if (hLower.includes("nombre") || hLower === "name") autoMapping["nombre"] = h;
           else if (hLower.includes("email") || hLower.includes("correo")) autoMapping["email"] = h;
-          else if (hLower.includes("pais") || hLower.includes("país") || hLower.includes("country")) autoMapping["pais"] = h;
-          else if (hLower.includes("organizacion") || hLower.includes("organización") || hLower.includes("rol")) autoMapping["role"] = h;
+          else if (hLower.includes("contrasena") || hLower.includes("password")) autoMapping["password"] = h;
+          else if (hLower.includes("pais") || hLower === "country") autoMapping["pais"] = h;
+          else if (hLower.includes("organizacion") || hLower === "rol" || hLower === "role") autoMapping["role"] = h;
           else if (hLower.includes("trabajo") || hLower.includes("work")) autoMapping["work_type"] = h;
           else if (hLower.includes("expertise") || hLower.includes("experiencia")) autoMapping["expertise"] = h;
           else if (hLower.includes("whatsapp") || hLower.includes("telefono") || hLower.includes("phone")) autoMapping["whatsapp"] = h;
@@ -265,7 +310,7 @@ export default function AdminPanel({
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px", marginBottom: "14px" }}>
         {[
-          { v: viewMode === "all" ? allSystemProfiles.length : allProfiles.length, l: "Perfiles", c: S.blue },
+          { v: allProfiles.length, l: "Perfiles", c: S.blue },
           { v: matches.length, l: "Matches", c: S.green },
           { v: allProfiles.filter(p => p.hasLoggedIn).length, l: "Activos", c: S.purple },
           { v: total, l: "Alertas", c: S.yellow },
@@ -293,6 +338,9 @@ export default function AdminPanel({
 
       {tab === "alerts" && (
         <div>
+          {total > 0 && <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
+            <Btn variant="outline" style={{ padding: "6px 12px", fontSize: "11px" }} onClick={exportAlerts}>📤 Descargar alertas</Btn>
+          </div>}
           <AlertCard icon={<DoorOpen size={16} color={S.red}/>} title="No han ingresado" items={noLogin} color={S.red} bgColor={S.redBg}/>
           <AlertCard icon={<MousePointerClick size={16} color={S.yellow}/>} title="Sin swipes" items={noSwipe} color={S.yellow} bgColor={S.yellowBg}/>
           <AlertCard icon={<HeartCrack size={16} color={S.purple}/>} title="Sin matches" items={noMatch} color={S.purple} bgColor={S.purpleBg} onAction={onManualMatch}/>
@@ -303,6 +351,9 @@ export default function AdminPanel({
 
       {tab === "stats" && (
         <div>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "8px" }}>
+            <Btn variant="outline" style={{ padding: "6px 12px", fontSize: "11px" }} onClick={exportStats}>📤 Descargar estadisticas</Btn>
+          </div>
           <div style={{ background: S.card, borderRadius: "16px", padding: "18px", border: `1px solid ${S.border}`, marginBottom: "12px" }}>
             <h4 style={{ color: S.textSec, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 12px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Lo que ofrecen</h4>
             <Bar entries={Object.entries(offersCount)} max={allProfiles.length} color={S.green}/>

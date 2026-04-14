@@ -232,17 +232,12 @@ export function useCohorts(userId?: string) {
 
   // Add a member to a cohort (admin)
   const addMemberToCohort = async (cohortId: string, profileId: string): Promise<boolean> => {
-    console.log('Adding member to cohort:', { cohortId, profileId });
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('cohort_members')
-      .upsert({ cohort_id: cohortId, profile_id: profileId }, { onConflict: 'cohort_id,profile_id' })
-      .select();
-
-    console.log('Result:', { data, error });
+      .upsert({ cohort_id: cohortId, profile_id: profileId }, { onConflict: 'cohort_id,profile_id' });
 
     if (error) {
       console.error('Error adding member to cohort:', error);
-      alert(`Error al agregar a cohorte: ${error.message}`);
       return false;
     }
 
