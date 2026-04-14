@@ -22,6 +22,7 @@ export default function AdminPanel({
   onRefreshProfiles,
   onDeleteUser,
   onChangeCohortFilter,
+  cohortStats = { totalMatches: 0, totalMessages: 0 },
 }) {
   const [tab, setTab] = useState("alerts");
   const [showCohortModal, setShowCohortModal] = useState(false);
@@ -328,16 +329,17 @@ export default function AdminPanel({
       <h3 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: "20px", fontWeight: 700, color: S.text, marginBottom: "6px" }}>Panel Admin</h3>
       {cohortName && <p style={{ fontSize: "11px", color: S.blue, fontWeight: 600, marginBottom: "14px", fontFamily: "'DM Sans', sans-serif" }}><ClipboardList size={12}/> Cohorte activa: {cohortName} · {allProfiles.length} participantes</p>}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px", marginBottom: "14px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: "8px", marginBottom: "14px" }}>
         {[
           { v: allProfiles.length, l: "Perfiles", c: S.blue },
-          { v: matches.length, l: "Matches", c: S.green },
+          { v: cohortStats.totalMatches, l: "Matches", c: S.green },
+          { v: cohortStats.totalMessages, l: "Mensajes", c: "#2563EB" },
           { v: allProfiles.filter(p => p.hasLoggedIn).length, l: "Activos", c: S.purple },
           { v: total, l: "Alertas", c: S.yellow },
         ].map(s => (
           <div key={s.l} style={{ background: S.card, borderRadius: "14px", padding: "14px 8px", border: `1px solid ${S.border}`, textAlign: "center" }}>
-            <div style={{ fontSize: "24px", fontWeight: 700, color: s.c, fontFamily: "'DM Sans', sans-serif" }}>{s.v}</div>
-            <div style={{ fontSize: "10px", color: S.textTer, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'DM Sans', sans-serif" }}>{s.l}</div>
+            <div style={{ fontSize: "22px", fontWeight: 700, color: s.c, fontFamily: "'DM Sans', sans-serif" }}>{s.v}</div>
+            <div style={{ fontSize: "9px", color: S.textTer, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'DM Sans', sans-serif" }}>{s.l}</div>
           </div>
         ))}
       </div>

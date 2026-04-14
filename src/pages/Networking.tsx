@@ -65,6 +65,7 @@ export default function Networking() {
   const cohortProfiles = useMemo(() => dbProfiles.map(convertProfileToLegacy).filter(Boolean), [dbProfiles]);
   // Admin view: all cohort members (including swiped + current user)
   const [adminCohortProfiles, setAdminCohortProfiles] = useState([]);
+  const [adminCohortStats, setAdminCohortStats] = useState({ totalMatches: 0, totalMessages: 0 });
   const [adminCohortId, setAdminCohortId] = useState(null);
   const activeAdminCohortId = adminCohortId || selectedCohortId;
 
@@ -75,13 +76,30 @@ export default function Networking() {
       .select('profile_id')
       .eq('cohort_id', cohortId);
     if (memberIds && memberIds.length > 0) {
+      const ids = memberIds.map(m => m.profile_id);
       const { data: profiles } = await supabase
         .from('profiles')
         .select('*')
-        .in('id', memberIds.map(m => m.profile_id));
+        .in('id', ids);
       setAdminCohortProfiles((profiles || []).map(convertProfileToLegacy).filter(Boolean));
+
+      // Fetch cohort-wide matches (both users in cohort)
+      const { data: allMatches } = await supabase
+        .from('matches')
+        .select('id, user_id, matched_user_id')
+        .or(ids.map(id => `user_id.eq.${id}`).join(','));
+      const cohortMatches = (allMatches || []).filter(m => ids.includes(m.user_id) && ids.includes(m.matched_user_id));
+
+      // Fetch total messages from cohort members
+      const { count: messageCount } = await supabase
+        .from('messages')
+        .select('id', { count: 'exact', head: true })
+        .in('sender_id', ids);
+
+      setAdminCohortStats({ totalMatches: cohortMatches.length, totalMessages: messageCount || 0 });
     } else {
       setAdminCohortProfiles([]);
+      setAdminCohortStats({ totalMatches: 0, totalMessages: 0 });
     }
   }, []);
   useEffect(() => { fetchAdminCohortProfiles(activeAdminCohortId); }, [activeAdminCohortId, fetchAdminCohortProfiles]);
@@ -829,6 +847,7 @@ export default function Networking() {
           <AdminPanel
             allProfiles={adminCohortProfiles}
             matches={localMatches}
+            cohortStats={adminCohortStats}
             onManualMatch={manualMatch}
             cohortName={selectedCohort?.name}
             currentUserId={currentUserId}
