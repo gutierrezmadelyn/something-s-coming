@@ -177,6 +177,26 @@ export default function AdminPanel({
     downloadCSV(`estadisticas_${cohortLabel}_${new Date().toISOString().split("T")[0]}.csv`, lines.join("\n"));
   };
 
+  const exportMetricsByPerson = () => {
+    const headers = ["Nombre", "Email", "Pais", "Ingreso a la app", "Perfil completo", "Swipes realizados", "Matches logrados", "Mensajes enviados"];
+    const rows = allProfiles.map(p => {
+      const hasProfile = !!(p.pitch && (p.expertise || []).length > 0 && (p.offers || []).length > 0 && (p.seeks || []).length > 0);
+      return [
+        p.name,
+        p.email || "",
+        p.country || "",
+        p.hasLoggedIn ? "Si" : "No",
+        hasProfile ? "Si" : "No",
+        p.swipeCount || 0,
+        p.matchCount || 0,
+        p.conversationsStarted || 0,
+      ];
+    });
+    const csv = [headers.join(","), ...rows.map(r => r.map(v => `"${v}"`).join(","))].join("\n");
+    const cohortLabel = cohortName ? cohortName.replace(/\s+/g, "_") : "todos";
+    downloadCSV(`metricas_por_persona_${cohortLabel}_${new Date().toISOString().split("T")[0]}.csv`, csv);
+  };
+
   const exportAlerts = () => {
     const headers = ["Tipo de Alerta", "Nombre", "Email"];
     const rows = [];
@@ -370,9 +390,48 @@ export default function AdminPanel({
             <h4 style={{ color: S.textSec, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 12px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Quieren aprender</h4>
             <Bar entries={Object.entries(wantsToLearnCount)} max={allProfiles.length} color="#FFC800"/>
           </div>
-          <div style={{ background: S.card, borderRadius: "16px", padding: "18px", border: `1px solid ${S.border}` }}>
+          <div style={{ background: S.card, borderRadius: "16px", padding: "18px", border: `1px solid ${S.border}`, marginBottom: "12px" }}>
             <h4 style={{ color: S.textSec, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em", margin: "0 0 12px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Sectores</h4>
             <Bar entries={Object.entries(sectorCount)} max={allProfiles.length} color={S.purple}/>
+          </div>
+
+          {/* Métricas por persona */}
+          <div style={{ background: S.card, borderRadius: "16px", padding: "18px", border: `1px solid ${S.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+              <h4 style={{ color: S.textSec, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0, fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>Metricas por persona</h4>
+              <Btn variant="outline" style={{ padding: "4px 10px", fontSize: "10px" }} onClick={exportMetricsByPerson}>📤 CSV</Btn>
+            </div>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px", fontFamily: "'DM Sans', sans-serif" }}>
+                <thead>
+                  <tr style={{ borderBottom: `2px solid ${S.border}` }}>
+                    <th style={{ textAlign: "left", padding: "6px 8px", color: S.textSec, fontWeight: 700 }}>Nombre</th>
+                    <th style={{ textAlign: "center", padding: "6px 4px", color: S.textSec, fontWeight: 700 }}>Ingreso</th>
+                    <th style={{ textAlign: "center", padding: "6px 4px", color: S.textSec, fontWeight: 700 }}>Perfil</th>
+                    <th style={{ textAlign: "center", padding: "6px 4px", color: S.textSec, fontWeight: 700 }}>Matches</th>
+                    <th style={{ textAlign: "center", padding: "6px 4px", color: S.textSec, fontWeight: 700 }}>Mensajes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allProfiles.map(p => {
+                    const hasProfile = !!(p.pitch && (p.expertise || []).length > 0 && (p.offers || []).length > 0 && (p.seeks || []).length > 0);
+                    return (
+                      <tr key={p.id} style={{ borderBottom: `1px solid ${S.border}` }}>
+                        <td style={{ padding: "6px 8px", color: S.text, fontWeight: 600, maxWidth: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</td>
+                        <td style={{ textAlign: "center", padding: "6px 4px" }}>
+                          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: p.hasLoggedIn ? S.green : S.border }} />
+                        </td>
+                        <td style={{ textAlign: "center", padding: "6px 4px" }}>
+                          <span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: hasProfile ? S.green : S.border }} />
+                        </td>
+                        <td style={{ textAlign: "center", padding: "6px 4px", color: (p.matchCount || 0) > 0 ? S.green : S.textTer, fontWeight: 700 }}>{p.matchCount || 0}</td>
+                        <td style={{ textAlign: "center", padding: "6px 4px", color: (p.conversationsStarted || 0) > 0 ? S.blue : S.textTer, fontWeight: 700 }}>{p.conversationsStarted || 0}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
