@@ -60,9 +60,23 @@ export default function Networking() {
   const allSystemProfiles = useMemo(() => allSystemDbProfiles.map(convertProfileToLegacy).filter(Boolean), [allSystemDbProfiles]);
   const { permission, requestPermission, showNotification, updateBadge, playSound } = useNotifications();
   const activeChatRef = useRef<string | null>(null);
+  const analyticsSessionRef = useRef(false);
 
   const me = useMemo(() => authProfile ? convertProfileToLegacy(authProfile) : null, [authProfile]);
   const cohortProfiles = useMemo(() => dbProfiles.map(convertProfileToLegacy).filter(Boolean), [dbProfiles]);
+
+  // Privacy-conscious product analytics. These calls become active with the
+  // reporting migration and never include profile or message content.
+  useEffect(() => {
+    if (!currentUserId || analyticsSessionRef.current) return;
+    analyticsSessionRef.current = true;
+    supabase.rpc("track_analytics_event", {
+      p_event_name: "session_started",
+      p_cohort_id: selectedCohortId,
+      p_subject_id: null,
+      p_properties: { surface: "networking" },
+    }).then(() => undefined);
+  }, [currentUserId, selectedCohortId]);
   // Admin view: all cohort members (including swiped + current user)
   const [adminCohortProfiles, setAdminCohortProfiles] = useState([]);
   const [adminCohortStats, setAdminCohortStats] = useState({ totalMatches: 0, totalMessages: 0 });
@@ -401,6 +415,12 @@ export default function Networking() {
     if (conversationId && markAsRead) {
       markAsRead(conversationId);
     }
+    supabase.rpc("track_analytics_event", {
+      p_event_name: "conversation_opened",
+      p_cohort_id: selectedCohortId,
+      p_subject_id: m.id || null,
+      p_properties: {},
+    }).then(() => undefined);
   };
 
   const manualMatch = async (profile) => {
@@ -596,9 +616,11 @@ export default function Networking() {
       {showCohortPicker && tab !== "chat" && <CohortPicker cohorts={cohorts} selectedCohortId={selectedCohortId} onSelect={setSelectedCohortId} onClose={() => setShowCohortPicker(false)} />}
 
       <div style={{
-        maxWidth: tab === "chat" ? "100%" : 440,
+        // Participant flows remain phone-first; administration gets a true
+        // desktop canvas so charts, networks and dense tables remain legible.
+        maxWidth: tab === "chat" ? "100%" : tab === "admin" ? 1440 : 440,
         margin: "0 auto",
-        padding: tab === "chat" ? "0" : "14px 14px 100px",
+        padding: tab === "chat" ? "0" : tab === "admin" ? "22px clamp(16px, 3vw, 42px) 100px" : "14px 14px 100px",
         minHeight: tab === "chat" ? undefined : "calc(100vh - 130px)",
         height: tab === "chat" ? "100dvh" : undefined,
         display: tab === "chat" ? "flex" : undefined,

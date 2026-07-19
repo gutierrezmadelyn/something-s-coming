@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { S } from "./styles";
 import { Avatar, Btn } from "./ui";
 import { Target, MessageCircle, ClipboardList, Pencil, Trash2, DoorOpen, MousePointerClick, HeartCrack } from "lucide-react";
+import ReportingDashboard from "./ReportingDashboard";
 
 export default function AdminPanel({
   allProfiles,
@@ -24,7 +25,7 @@ export default function AdminPanel({
   onChangeCohortFilter,
   cohortStats = { totalMatches: 0, totalMessages: 0 },
 }) {
-  const [tab, setTab] = useState("alerts");
+  const [tab, setTab] = useState("reports");
   const [showCohortModal, setShowCohortModal] = useState(false);
   const [editingCohort, setEditingCohort] = useState(null);
   const [cohortForm, setCohortForm] = useState({ name: "", short_name: "", description: "", color: "#2851A3", icon: "📋" });
@@ -346,6 +347,7 @@ export default function AdminPanel({
 
       <div style={{ display: "flex", gap: "6px", marginBottom: "14px", overflowX: "auto" }}>
         {[
+          { id: "reports", label: "Reportería" },
           { id: "alerts", label: "Alertas", badge: total },
           { id: "stats", label: "Estadisticas" },
           { id: "people", label: "Participantes" },
@@ -357,6 +359,10 @@ export default function AdminPanel({
           </button>
         ))}
       </div>
+
+      {tab === "reports" && (
+        <ReportingDashboard profiles={allProfiles} cohortName={cohortName} selectedCohortId={selectedCohortId} />
+      )}
 
       {tab === "alerts" && (
         <div>
