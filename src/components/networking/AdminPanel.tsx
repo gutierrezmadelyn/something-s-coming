@@ -361,7 +361,7 @@ export default function AdminPanel({
       </div>
 
       {tab === "reports" && (
-        <ReportingDashboard profiles={allProfiles} cohortName={cohortName} selectedCohortId={selectedCohortId} />
+        <ReportingDashboard profiles={allSystemProfiles} cohorts={cohorts} cohortName={cohortName} selectedCohortId={selectedCohortId} />
       )}
 
       {tab === "alerts" && (
