@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      analytics_events: {
+        Row: {
+          cohort_id: string | null
+          event_name: string
+          id: string
+          occurred_at: string
+          properties: Json
+          subject_id: string | null
+          user_id: string
+        }
+        Insert: {
+          cohort_id?: string | null
+          event_name: string
+          id?: string
+          occurred_at?: string
+          properties?: Json
+          subject_id?: string | null
+          user_id: string
+        }
+        Update: {
+          cohort_id?: string | null
+          event_name?: string
+          id?: string
+          occurred_at?: string
+          properties?: Json
+          subject_id?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       cohort_members: {
         Row: {
           cohort_id: string
@@ -55,31 +85,40 @@ export type Database = {
           color: string | null
           created_at: string | null
           description: string | null
+          event_ends_at: string | null
+          event_starts_at: string | null
           icon: string | null
           id: string
           is_active: boolean | null
           name: string
           short_name: string | null
+          timezone: string
         }
         Insert: {
           color?: string | null
           created_at?: string | null
           description?: string | null
+          event_ends_at?: string | null
+          event_starts_at?: string | null
           icon?: string | null
           id: string
           is_active?: boolean | null
           name: string
           short_name?: string | null
+          timezone?: string
         }
         Update: {
           color?: string | null
           created_at?: string | null
           description?: string | null
+          event_ends_at?: string | null
+          event_starts_at?: string | null
           icon?: string | null
           id?: string
           is_active?: boolean | null
           name?: string
           short_name?: string | null
+          timezone?: string
         }
         Relationships: []
       }
@@ -245,6 +284,7 @@ export type Database = {
           name: string
           offers: string[] | null
           organization: string | null
+          organization_description: string | null
           photo_url: string | null
           pitch: string | null
           role: string | null
@@ -255,7 +295,7 @@ export type Database = {
           streak: number | null
           swipe_count: number | null
           updated_at: string | null
-          wants_to_learn: string | null
+          wants_to_learn: string[] | null
           whatsapp: string | null
           work_type: string | null
           xp: number | null
@@ -281,6 +321,7 @@ export type Database = {
           name: string
           offers?: string[] | null
           organization?: string | null
+          organization_description?: string | null
           photo_url?: string | null
           pitch?: string | null
           role?: string | null
@@ -291,7 +332,7 @@ export type Database = {
           streak?: number | null
           swipe_count?: number | null
           updated_at?: string | null
-          wants_to_learn?: string | null
+          wants_to_learn?: string[] | null
           whatsapp?: string | null
           work_type?: string | null
           xp?: number | null
@@ -317,6 +358,7 @@ export type Database = {
           name?: string
           offers?: string[] | null
           organization?: string | null
+          organization_description?: string | null
           photo_url?: string | null
           pitch?: string | null
           role?: string | null
@@ -327,10 +369,40 @@ export type Database = {
           streak?: number | null
           swipe_count?: number | null
           updated_at?: string | null
-          wants_to_learn?: string | null
+          wants_to_learn?: string[] | null
           whatsapp?: string | null
           work_type?: string | null
           xp?: number | null
+        }
+        Relationships: []
+      }
+      read_receipts: {
+        Row: {
+          conversation_id: string
+          created_at: string | null
+          id: string
+          last_read_at: string | null
+          last_read_message_id: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string | null
+          id?: string
+          last_read_at?: string | null
+          last_read_message_id?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string | null
+          id?: string
+          last_read_at?: string | null
+          last_read_message_id?: string | null
+          updated_at?: string | null
+          user_id?: string
         }
         Relationships: []
       }
@@ -424,7 +496,9 @@ export type Database = {
           p_country?: string
           p_email: string
           p_expertise?: string[]
+          p_lat?: number
           p_linkedin?: string
+          p_lng?: number
           p_name: string
           p_password?: string
           p_role?: string
@@ -441,13 +515,53 @@ export type Database = {
         Args: { user_a: string; user_b: string }
         Returns: number
       }
+      check_and_create_match: {
+        Args: { p_swiped_user_id: string; p_user_id: string }
+        Returns: Json
+      }
       claim_profile_by_email: {
         Args: { p_auth_id: string; p_email: string; p_name?: string }
         Returns: Json
       }
+      delete_match_and_swipes: {
+        Args: { p_match_id: string }
+        Returns: undefined
+      }
       delete_user_data: {
         Args: { user_id_to_delete: string }
         Returns: undefined
+      }
+      get_admin_reporting_summary: {
+        Args: { p_cohort_id?: string; p_from?: string; p_to?: string }
+        Returns: Json
+      }
+      get_chat_list: {
+        Args: { p_user_id: string }
+        Returns: {
+          conversation_id: string
+          has_conversation: boolean
+          icebreaker: string
+          last_message_at: string
+          last_message_content: string
+          last_message_created_at: string
+          last_message_id: string
+          last_message_sender_id: string
+          match_created_at: string
+          match_id: string
+          match_type: string
+          other_user_avatar_color: string
+          other_user_avatar_initials: string
+          other_user_city: string
+          other_user_id: string
+          other_user_linkedin: string
+          other_user_name: string
+          other_user_photo_url: string
+          other_user_role: string
+          other_user_show_location: boolean
+          other_user_show_phone: boolean
+          other_user_whatsapp: string
+          unread_count: number
+        }[]
       }
       get_leaderboard:
         | {
@@ -462,7 +576,40 @@ export type Database = {
               error: true
             } & "Could not choose the best candidate function between: public.get_leaderboard(p_cohort_id => text), public.get_leaderboard(p_cohort_id => uuid). Try renaming the parameters or the function itself in the database so function overloading can be resolved"[]
           }
+      get_messages_paginated: {
+        Args: {
+          p_before_id?: string
+          p_conversation_id: string
+          p_limit?: number
+        }
+        Returns: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          message_type: string
+          sender_id: string
+        }[]
+      }
       get_random_icebreaker: { Args: never; Returns: string }
+      get_total_unread_count: { Args: { p_user_id?: string }; Returns: number }
+      get_unread_count: {
+        Args: { p_conversation_id: string; p_user_id?: string }
+        Returns: number
+      }
+      mark_messages_as_read: {
+        Args: { p_conversation_id: string; p_user_id?: string }
+        Returns: undefined
+      }
+      track_analytics_event: {
+        Args: {
+          p_cohort_id?: string
+          p_event_name: string
+          p_properties?: Json
+          p_subject_id?: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never
