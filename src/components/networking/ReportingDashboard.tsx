@@ -212,28 +212,24 @@ export default function ReportingDashboard({ profiles = [], cohorts = [], cohort
   const [view, setView] = useState("compare"); // "compare" | "all" | <cohortId>
 
   const load = useCallback(async () => {
-    const ids = profiles.map(p => p.id).filter(Boolean);
-    if (!ids.length) { setRaw({ matches: [], conversations: [], messages: [], swipes: [], receipts: [], xp: [], members: [] }); setLoading(false); return; }
     setLoading(true); setError("");
     try {
-      const [matchesRes, swipesRes, xpRes, membersRes] = await Promise.all([
-        supabase.from("matches").select("*").in("user_id", ids),
-        supabase.from("swipes").select("*").in("user_id", ids),
-        supabase.from("xp_log").select("*").in("user_id", ids),
-        supabase.from("cohort_members").select("cohort_id,profile_id").in("profile_id", ids),
-      ]);
-      if (matchesRes.error) throw matchesRes.error;
-      const matches = (matchesRes.data || []).filter(m => ids.includes(m.user_id) && ids.includes(m.matched_user_id));
-      const convRes = matches.length ? await supabase.from("conversations").select("*").in("match_id", matches.map(m => m.id)) : { data: [] };
-      const conversations = convRes.data || [];
-      const [msgRes, receiptRes] = conversations.length ? await Promise.all([
-        supabase.from("messages").select("id,conversation_id,sender_id,message_type,created_at").in("conversation_id", conversations.map(c => c.id)),
-        supabase.from("read_receipts").select("conversation_id,user_id,last_read_at").in("conversation_id", conversations.map(c => c.id)),
-      ]) : [{ data: [] }, { data: [] }];
-      setRaw({ matches, conversations, messages: msgRes.data || [], swipes: swipesRes.data || [], receipts: receiptRes.data || [], xp: xpRes.data || [], members: membersRes.data || [] });
+      // Platform-wide interaction metadata computed server-side (SECURITY DEFINER,
+      // admin-gated, no message bodies). This bypasses per-user RLS so the totals
+      // reflect the WHOLE platform, not just the admin's own rows.
+      const { data, error: rpcError } = await supabase.rpc("get_admin_reporting_dataset");
+      if (rpcError) throw rpcError;
+      setRaw({
+        matches: data?.matches || [],
+        conversations: data?.conversations || [],
+        messages: data?.messages || [],
+        swipes: data?.swipes || [],
+        members: data?.members || [],
+        receipts: [], xp: [],
+      });
     } catch (e) { setError(e?.message || "No fue posible cargar la reportería"); }
     finally { setLoading(false); }
-  }, [profiles]);
+  }, []);
   useEffect(() => { load(); }, [load]);
 
   const membersByCohort = useMemo(() => {
